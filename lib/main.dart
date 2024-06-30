@@ -1,6 +1,44 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'package:flutter/material.dart';
+import 'caregiver_form.dart';
+import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+
+// Notification model
+class Notification {
+  final String senderName;
+  final String avatarUrl;
+  final String action;
+
+  Notification(
+      {required this.senderName,
+      required this.avatarUrl,
+      required this.action});
+}
+
+class UserProfile {
+  final String username;
+  final String avatarUrl;
+  final String bio;
+  final double starRating;
+  final String birthdate;
+  final String expertise;
+  final String location;
+  final bool isVerified;
+  final List<String> attachedFiles;
+
+  UserProfile({
+    required this.username,
+    required this.avatarUrl,
+    required this.bio,
+    required this.starRating,
+    required this.birthdate,
+    required this.expertise,
+    required this.location,
+    required this.isVerified,
+    required this.attachedFiles,
+  });
+}
 
 void main() {
   runApp(const MyApp());
@@ -283,7 +321,16 @@ class _SignUpPageState extends State<SignUpPage> {
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
-                  // Handle sign-up logic here
+                  if (_selectedUserType == 'Caregiver') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => CaregiverFormPage(
+                              toggleTheme: widget.toggleTheme)),
+                    );
+                  } else {
+                    // Handle client sign-up logic here
+                  }
                 },
                 style: ButtonStyle(
                   backgroundColor:
@@ -663,46 +710,505 @@ class HomePage extends StatelessWidget {
   }
 }
 
+// Main app entry point remains unchanged
+
 // Messages Page
 class MessagesPage extends StatelessWidget {
   const MessagesPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Messages Page',
-        style: Theme.of(context).textTheme.headlineMedium,
+    // Sample data
+    final List<Message> messages = [
+      Message(
+        sender: 'John Rey Dado',
+        text: 'Hello, how are you?',
+        avatarUrl:
+            'https://scontent.fmnl8-2.fna.fbcdn.net/v/t1.6435-9/69831401_2217217731909906_2278803583040225280_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=53a332&_nc_eui2=AeFH7jUadCg5LzyR3nnKMSsPS1Lb2HEIcvFLUtvYcQhy8bB5NJIV0zqqRs7nrQk0DEKXLxgBuwE1xDjT_6UfwaGa&_nc_ohc=b6TKzUORKJQQ7kNvgGDoV8w&_nc_ht=scontent.fmnl8-2.fna&oh=00_AYBBiQshIxsVH5mCzrYeP9NrwU9VsuTBjUFg_2f5uEo1Lw&oe=66A92322', // Placeholder image URL
+        time: '2m ago',
+      ),
+      Message(
+        sender: 'Anthony Renzo Zuñiga',
+        text: 'Mano, miss ko na si mailah',
+        avatarUrl:
+            'https://scontent.fmnl8-1.fna.fbcdn.net/v/t39.30808-1/368026047_1788561318228013_224250882585157351_n.jpg?stp=dst-jpg_s200x200&_nc_cat=100&ccb=1-7&_nc_sid=0ecb9b&_nc_eui2=AeG1bNLQ_vgERvrkD4aWVvB8aq1ONyjtactqrU43KO1pyyw9xOHdg1qYmIUtvJ8VRjVO5m4A9lVJt2f0qz4RptZk&_nc_ohc=toVV0aPBWbkQ7kNvgEysEoP&_nc_ht=scontent.fmnl8-1.fna&oh=00_AYACa-up-qsDkZEJpfxnIDQHrwUlcCihpDTVnXa1-hcuJw&oe=66875C0B',
+        time: '1h ago',
+      ),
+      Message(
+        sender: 'Jay-ar Baloloy',
+        text: 'ayawkol',
+        avatarUrl:
+            'https://scontent.fmnl8-3.fna.fbcdn.net/v/t39.30808-1/339443135_1264591487776723_1686334611574014372_n.jpg?stp=c0.0.200.200a_dst-jpg_p200x200&_nc_cat=101&ccb=1-7&_nc_sid=0ecb9b&_nc_eui2=AeF16R7J4CQhbnsE_d0yJe9CNpZK-nCbh-o2lkr6cJuH6pZwd5_Xeu7rC5ookz6Tw8oYWo1__plts-zcXiji7l_j&_nc_ohc=iIRsCbDDOcoQ7kNvgHuko_W&_nc_ht=scontent.fmnl8-3.fna&oh=00_AYBE77uR4TZtAgDskHB5yQFqkYXTN27NWiIpn9euPo0n5Q&oe=66878230',
+        time: '1h ago',
+      ),
+      Message(
+        sender: 'Angelo Bautista',
+        text: 'Tite ni mano',
+        avatarUrl:
+            'https://scontent.fmnl8-2.fna.fbcdn.net/v/t39.30808-1/435612700_2488039958049317_8622276536411312900_n.jpg?stp=dst-jpg_s200x200&_nc_cat=103&ccb=1-7&_nc_sid=0ecb9b&_nc_eui2=AeFlGJS3eaVeg41BscfRW8Jmb-z6_feOLHJv7Pr9944scruK2dD2Pq25JKAi4XI85zUv6MeeOhPjHwK8TGhDh8_f&_nc_ohc=dvwl8ckdUjYQ7kNvgFss7ym&_nc_ht=scontent.fmnl8-2.fna&oh=00_AYClwt0kqAwfPI8J4ujkbM-b3HFR8QMQ_seA_zQ96DoZyA&oe=66877D58',
+        time: '1h ago',
+      ),
+    ];
+
+    return Scaffold(
+      body: ListView.builder(
+        itemCount: messages.length,
+        itemBuilder: (context, index) {
+          final message = messages[index];
+          return ListTile(
+            leading: CircleAvatar(
+              backgroundImage: NetworkImage(message.avatarUrl),
+            ),
+            title: Text(message.sender),
+            subtitle: Text(message.text),
+            trailing: Text(message.time),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ConversationPage(
+                    sender: message.sender,
+                    avatarUrl: message.avatarUrl,
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
 }
 
-// Notifications Page
+// Message model
+class Message {
+  final String sender;
+  final String text;
+  final String avatarUrl;
+  final String time;
+
+  Message({
+    required this.sender,
+    required this.text,
+    required this.avatarUrl,
+    required this.time,
+  });
+}
+
+// Conversation Page
+class ConversationPage extends StatelessWidget {
+  final String sender;
+  final String avatarUrl;
+
+  const ConversationPage({
+    super.key,
+    required this.sender,
+    required this.avatarUrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Sample data for conversation
+    final List<Message> conversation = [
+      Message(
+          sender: 'Alice',
+          text: 'Hello, how are you?',
+          avatarUrl: avatarUrl,
+          time: '2m ago'),
+      Message(
+          sender: 'You',
+          text: 'I am good, how about you?',
+          avatarUrl: avatarUrl,
+          time: '1m ago'),
+      // Add more sample messages here
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(sender),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              itemCount: conversation.length,
+              itemBuilder: (context, index) {
+                final message = conversation[index];
+                return ListTile(
+                  leading: message.sender == 'You'
+                      ? null
+                      : CircleAvatar(
+                          backgroundImage: NetworkImage(message.avatarUrl),
+                        ),
+                  title: Align(
+                    alignment: message.sender == 'You'
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: message.sender == 'You'
+                            ? Colors.blue[100]
+                            : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(message.text),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Type a message',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: () {
+                    // Handle send message action
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Notification item widget
+class NotificationItem extends StatelessWidget {
+  final String senderName;
+  final String avatarUrl;
+  final String action;
+  final VoidCallback onActionPressed;
+
+  const NotificationItem({
+    super.key,
+    required this.senderName,
+    required this.avatarUrl,
+    required this.action,
+    required this.onActionPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundImage: NetworkImage(avatarUrl),
+      ),
+      title: Text('$senderName sent an application'),
+      trailing: ElevatedButton(
+        onPressed: onActionPressed,
+        style: ElevatedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        child: Text(action),
+      ),
+    );
+  }
+}
+
+// Notifications page
 class NotificationsPage extends StatelessWidget {
   const NotificationsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Notifications Page',
-        style: Theme.of(context).textTheme.headlineMedium,
+    // Example notifications
+    final notifications = [
+      Notification(
+          senderName: 'John Rey Dado',
+          avatarUrl:
+              'https://scontent.fmnl8-2.fna.fbcdn.net/v/t1.6435-9/69831401_2217217731909906_2278803583040225280_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=53a332&_nc_eui2=AeFH7jUadCg5LzyR3nnKMSsPS1Lb2HEIcvFLUtvYcQhy8bB5NJIV0zqqRs7nrQk0DEKXLxgBuwE1xDjT_6UfwaGa&_nc_ohc=b6TKzUORKJQQ7kNvgGDoV8w&_nc_ht=scontent.fmnl8-2.fna&oh=00_AYBBiQshIxsVH5mCzrYeP9NrwU9VsuTBjUFg_2f5uEo1Lw&oe=66A92322',
+          action: 'View'),
+      Notification(
+          senderName: 'Anthony Renzo Zuniga',
+          avatarUrl:
+              'https://scontent.fmnl8-1.fna.fbcdn.net/v/t39.30808-1/368026047_1788561318228013_224250882585157351_n.jpg?stp=dst-jpg_s200x200&_nc_cat=100&ccb=1-7&_nc_sid=0ecb9b&_nc_eui2=AeG1bNLQ_vgERvrkD4aWVvB8aq1ONyjtactqrU43KO1pyyw9xOHdg1qYmIUtvJ8VRjVO5m4A9lVJt2f0qz4RptZk&_nc_ohc=toVV0aPBWbkQ7kNvgEysEoP&_nc_ht=scontent.fmnl8-1.fna&oh=00_AYACa-up-qsDkZEJpfxnIDQHrwUlcCihpDTVnXa1-hcuJw&oe=66875C0B',
+          action: 'View'),
+      // Add more notifications here
+    ];
+
+    return Scaffold(
+      body: ListView.builder(
+        itemCount: notifications.length,
+        itemBuilder: (context, index) {
+          final notification = notifications[index];
+          return NotificationItem(
+            senderName: notification.senderName,
+            avatarUrl: notification.avatarUrl,
+            action: notification.action,
+            onActionPressed: () {
+              // Handle view action
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: Text('Application from ${notification.senderName}'),
+                    content: const Text('Viewing application details...'),
+                    actions: <Widget>[
+                      TextButton(
+                        child: const Text('Close'),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          );
+        },
       ),
     );
   }
 }
 
-// Profile Page
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
+// ProfileHeader widget
+class ProfileHeader extends StatelessWidget {
+  final String username;
+  final String avatarUrl;
+  final String bio;
+  final double starRating;
+  final String birthdate;
+  final String expertise;
+  final String location;
+  final bool isVerified;
+
+  const ProfileHeader({
+    super.key,
+    required this.username,
+    required this.avatarUrl,
+    required this.bio,
+    required this.starRating,
+    required this.birthdate,
+    required this.expertise,
+    required this.location,
+    required this.isVerified,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Profile Page',
-        style: Theme.of(context).textTheme.headlineMedium,
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundImage: NetworkImage(avatarUrl),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          username,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (isVerified)
+                          const Icon(
+                            Icons.check_circle,
+                            color: Colors.blue,
+                            size: 20,
+                          ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.edit, size: 20),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EditProfilePage(),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    RatingBarIndicator(
+                      rating: starRating,
+                      itemBuilder: (context, index) => const Icon(
+                        Icons.star,
+                        color: Colors.amber,
+                      ),
+                      itemCount: 5,
+                      itemSize: 20.0,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(bio),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(Icons.cake, size: 20),
+              const SizedBox(width: 8),
+              Text('Birthdate: $birthdate'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.work, size: 20),
+              const SizedBox(width: 8),
+              Text('Expertise: $expertise'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.location_on, size: 20),
+              const SizedBox(width: 8),
+              Text('Location: $location'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// FileGrid widget
+class FileGrid extends StatelessWidget {
+  final List<String> attachedFiles;
+
+  // ignore: use_key_in_widget_constructors
+  const FileGrid({Key? key, required this.attachedFiles});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
+      padding: const EdgeInsets.all(16.0),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8.0,
+        mainAxisSpacing: 8.0,
+      ),
+      itemCount: attachedFiles.length,
+      itemBuilder: (context, index) {
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(),
+                  body: Center(
+                    child: InteractiveViewer(
+                      maxScale: 4.0,
+                      child: Image.network(attachedFiles[index]),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+          child: Image.network(attachedFiles[index]),
+        );
+      },
+    );
+  }
+}
+
+// ProfilePage widget
+class ProfilePage extends StatelessWidget {
+  // ignore: use_key_in_widget_constructors
+  const ProfilePage({Key? key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Example user profile
+    final userProfile = UserProfile(
+      username: 'John Rey Dado',
+      avatarUrl:
+          'https://scontent.fmnl8-2.fna.fbcdn.net/v/t1.6435-9/69831401_2217217731909906_2278803583040225280_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=53a332&_nc_eui2=AeFH7jUadCg5LzyR3nnKMSsPS1Lb2HEIcvFLUtvYcQhy8bB5NJIV0zqqRs7nrQk0DEKXLxgBuwE1xDjT_6UfwaGa&_nc_ohc=b6TKzUORKJQQ7kNvgGDoV8w&_nc_ht=scontent.fmnl8-2.fna&oh=00_AYBBiQshIxsVH5mCzrYeP9NrwU9VsuTBjUFg_2f5uEo1Lw&oe=66A92322',
+      bio: 'Kergiber',
+      starRating: 4.5,
+      birthdate: '2003-02-04',
+      expertise: 'Caregiverers',
+      location: 'Legazpi City',
+      isVerified: true,
+      attachedFiles: [
+        'https://cdn.enhancv.com/simple_double_column_resume_template_aecca5d139.png',
+        'https://cdn.enhancv.com/simple_double_column_resume_template_aecca5d139.png',
+        'https://cdn.enhancv.com/simple_double_column_resume_template_aecca5d139.png',
+        // Add more file URLs here
+      ],
+    );
+
+    return Scaffold(
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ProfileHeader(
+              username: userProfile.username,
+              avatarUrl: userProfile.avatarUrl,
+              bio: userProfile.bio,
+              starRating: userProfile.starRating,
+              birthdate: userProfile.birthdate,
+              expertise: userProfile.expertise,
+              location: userProfile.location,
+              isVerified: userProfile.isVerified,
+            ),
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'Attached Files',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            FileGrid(attachedFiles: userProfile.attachedFiles),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Placeholder for EditProfilePage
+class EditProfilePage extends StatelessWidget {
+  // ignore: use_key_in_widget_constructors
+  const EditProfilePage({Key? key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Edit Profile'),
+      ),
+      body: const Center(
+        child: Text('Edit'),
       ),
     );
   }
