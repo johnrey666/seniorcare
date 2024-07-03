@@ -1,20 +1,27 @@
-// ignore_for_file: library_private_types_in_public_api
+// ignore_for_file: library_private_types_in_public_api, use_build_context_synchronously
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:seniorcare/forgotpassword.dart';
 import 'homepage.dart';
 import 'client_form.dart';
 import 'caregiver_form.dart';
 import 'messages.dart';
 import 'notifications.dart';
 import 'profile.dart';
-import 'createpost.dart'; // Import the CreatePostPage class from createpost.dart
+import 'createpost.dart';
+import 'caregivershomepage.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key});
 
   @override
   _MyAppState createState() => _MyAppState();
@@ -49,10 +56,9 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-// Login Page
 class LoginPage extends StatefulWidget {
   final void Function() toggleTheme;
-  const LoginPage({super.key, required this.toggleTheme});
+  const LoginPage({Key? key, required this.toggleTheme});
 
   @override
   _LoginPageState createState() => _LoginPageState();
@@ -61,6 +67,68 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
+  bool _passwordVisible = false;
+
+  void _togglePasswordVisibility() {
+    setState(() {
+      _passwordVisible = !_passwordVisible;
+    });
+  }
+
+  Future<void> _login() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+
+      String userType = userDoc['userType'];
+
+      // Navigate to MainPage with userType
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              MainPage(toggleTheme: widget.toggleTheme, userType: userType),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      _showErrorDialog(e.message!);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Login Failed'),
+        content: const Text('Wrong Email or Password'),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('Okay'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          )
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +169,7 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 20),
               TextField(
                 controller: _passwordController,
-                obscureText: true,
+                obscureText: !_passwordVisible,
                 decoration: InputDecoration(
                   labelText: 'Password',
                   labelStyle: const TextStyle(color: Colors.black87),
@@ -114,38 +182,40 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(25),
                   ),
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.visibility_off),
-                    onPressed: () {},
+                    icon: Icon(
+                      _passwordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: Colors.grey,
+                    ),
+                    onPressed: _togglePasswordVisibility,
                   ),
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
                 ),
               ),
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) =>
-                            MainPage(toggleTheme: widget.toggleTheme)),
-                  );
-                },
-                style: ButtonStyle(
-                  backgroundColor:
-                      MaterialStateProperty.all<Color>(Colors.blueAccent),
-                  foregroundColor:
-                      MaterialStateProperty.all<Color>(Colors.white),
-                  padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
-                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15)),
-                  shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+              if (_isLoading)
+                const CircularProgressIndicator()
+              else
+                ElevatedButton(
+                  onPressed: _login,
+                  style: ButtonStyle(
+                    backgroundColor:
+                        MaterialStateProperty.all<Color>(Colors.blueAccent),
+                    foregroundColor:
+                        MaterialStateProperty.all<Color>(Colors.white),
+                    padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
+                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                    ),
+                    shape: MaterialStateProperty.all<RoundedRectangleBorder>(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
                     ),
                   ),
+                  child: const Text('Login'),
                 ),
-                child: const Text('Login'),
-              ),
               const SizedBox(height: 10),
               TextButton(
                 onPressed: () {
@@ -160,9 +230,23 @@ class _LoginPageState extends State<LoginPage> {
                   foregroundColor:
                       MaterialStateProperty.all<Color>(Colors.blueAccent),
                 ),
-                child: const Text('Don`t have an account yet? Sign Up'),
+                child: const Text('Don\'t have an account yet? Sign Up'),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 1),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => ForgotPasswordPage()),
+                  );
+                },
+                style: ButtonStyle(
+                  foregroundColor:
+                      MaterialStateProperty.all<Color>(Colors.blueAccent),
+                ),
+                child: const Text('Forgot Password?'),
+              ),
             ],
           ),
         ),
@@ -171,10 +255,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// Sign Up Page
 class SignUpPage extends StatefulWidget {
   final void Function() toggleTheme;
-  const SignUpPage({super.key, required this.toggleTheme});
+
+  const SignUpPage({Key? key, required this.toggleTheme});
 
   @override
   _SignUpPageState createState() => _SignUpPageState();
@@ -186,8 +270,106 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
   String? _selectedUserType;
-
   final List<String> _userTypes = ['Caregiver', 'Client'];
+  bool _isLoading = false;
+  bool _passwordVisible = false; // Track password visibility
+
+  void _togglePasswordVisibility() {
+    setState(() {
+      _passwordVisible = !_passwordVisible;
+    });
+  }
+
+  Future<void> _register() async {
+    if (_passwordController.text != _confirmPasswordController.text) {
+      _showErrorDialog("Passwords do not match.");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      UserCredential userCredential =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      Map<String, dynamic> userData = {
+        'email': _emailController.text,
+        'userType': _selectedUserType,
+        'firstName': '', // Initialize firstName
+        'lastName': '', // Initialize lastName
+        'profileImage': '', // Initialize profileImage
+      };
+
+      if (_selectedUserType == 'Client') {
+        // Add client-specific data from form
+        userData.addAll({
+          'agreedToShareInfo': false, // Example field
+          'condition': '', // Example field
+          'expertise': '', // Example field
+        });
+      } else if (_selectedUserType == 'Caregiver') {
+        // Add caregiver-specific data from form
+        userData.addAll({
+          'qualification': '', // Example field
+          'experience': '', // Example field
+        });
+      }
+
+      // Save user data to 'users' collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set(userData);
+
+      // Navigate to respective form page based on user type
+      if (_selectedUserType == 'Caregiver') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                CaregiverFormPage(toggleTheme: widget.toggleTheme),
+          ),
+        );
+      } else if (_selectedUserType == 'Client') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                ClientFormPage(toggleTheme: widget.toggleTheme),
+          ),
+        );
+      }
+    } catch (e) {
+      _showErrorDialog(e.toString());
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('An Error Occurred'),
+        content: Text(message),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('Okay'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          )
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -228,7 +410,7 @@ class _SignUpPageState extends State<SignUpPage> {
               const SizedBox(height: 20),
               TextField(
                 controller: _passwordController,
-                obscureText: true,
+                obscureText: !_passwordVisible,
                 decoration: InputDecoration(
                   labelText: 'Password',
                   labelStyle: const TextStyle(color: Colors.black87),
@@ -240,6 +422,15 @@ class _SignUpPageState extends State<SignUpPage> {
                     borderSide: const BorderSide(color: Colors.grey),
                     borderRadius: BorderRadius.circular(25),
                   ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _passwordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: Colors.grey,
+                    ),
+                    onPressed: _togglePasswordVisibility,
+                  ),
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
                 ),
@@ -247,9 +438,47 @@ class _SignUpPageState extends State<SignUpPage> {
               const SizedBox(height: 20),
               TextField(
                 controller: _confirmPasswordController,
-                obscureText: true,
+                obscureText: !_passwordVisible,
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',
+                  labelStyle: const TextStyle(color: Colors.black87),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: Colors.blueAccent),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _passwordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: Colors.grey,
+                    ),
+                    onPressed: _togglePasswordVisibility,
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+                ),
+              ),
+              const SizedBox(height: 20),
+              DropdownButtonFormField<String>(
+                value: _selectedUserType,
+                items: _userTypes.map((String userType) {
+                  return DropdownMenuItem<String>(
+                    value: userType,
+                    child: Text(userType),
+                  );
+                }).toList(),
+                onChanged: (newValue) {
+                  setState(() {
+                    _selectedUserType = newValue;
+                  });
+                },
+                decoration: InputDecoration(
+                  labelText: 'Select User Type',
                   labelStyle: const TextStyle(color: Colors.black87),
                   focusedBorder: OutlineInputBorder(
                     borderSide: const BorderSide(color: Colors.blueAccent),
@@ -264,66 +493,27 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
               ),
               const SizedBox(height: 20),
-              DropdownButtonFormField<String>(
-                value: _selectedUserType,
-                decoration: InputDecoration(
-                  labelText: 'User Type',
-                  labelStyle: const TextStyle(color: Colors.black87),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-                ),
-                items: _userTypes.map((String userType) {
-                  return DropdownMenuItem<String>(
-                    value: userType,
-                    child: Text(userType),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _selectedUserType = newValue;
-                  });
-                },
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  if (_selectedUserType == 'Caregiver') {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            CaregiverFormPage(toggleTheme: widget.toggleTheme),
+              if (_isLoading)
+                const CircularProgressIndicator()
+              else
+                ElevatedButton(
+                  onPressed: _register,
+                  style: ButtonStyle(
+                    backgroundColor:
+                        MaterialStateProperty.all<Color>(Colors.blueAccent),
+                    foregroundColor:
+                        MaterialStateProperty.all<Color>(Colors.white),
+                    padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
+                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                    ),
+                    shape: MaterialStateProperty.all<RoundedRectangleBorder>(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
                       ),
-                    );
-                  } else if (_selectedUserType == 'Client') {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            ClientFormPage(toggleTheme: widget.toggleTheme),
-                      ),
-                    );
-                  }
-                },
-                style: ButtonStyle(
-                  backgroundColor:
-                      MaterialStateProperty.all<Color>(Colors.blueAccent),
-                  foregroundColor:
-                      MaterialStateProperty.all<Color>(Colors.white),
-                  padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
-                    const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-                  ),
-                  shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
                     ),
                   ),
+                  child: const Text('Sign Up'),
                 ),
-                child: const Text('Sign Up'),
-              ),
               const SizedBox(height: 10),
               TextButton(
                 onPressed: () {
@@ -338,7 +528,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   foregroundColor:
                       MaterialStateProperty.all<Color>(Colors.blueAccent),
                 ),
-                child: const Text('Already have an account? Log In'),
+                child: const Text('Already have an account? Login'),
               ),
               const SizedBox(height: 20),
             ],
@@ -349,10 +539,15 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 }
 
-// Main Page with Bottom Navigation and Drawer
 class MainPage extends StatefulWidget {
+  final String userType;
   final void Function() toggleTheme;
-  const MainPage({super.key, required this.toggleTheme});
+
+  const MainPage({
+    Key? key,
+    required this.userType,
+    required this.toggleTheme,
+  }) : super(key: key);
 
   @override
   _MainPageState createState() => _MainPageState();
@@ -360,13 +555,55 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
+  String _accountName = 'Loading...';
+  String _accountEmail = 'Loading...';
+  String _profileImageUrl = '';
 
-  final List<Widget> _pages = [
-    const HomePage(),
-    const MessagesPage(),
-    const NotificationsPage(),
-    const ProfilePage(),
-  ];
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  void _fetchUserData() async {
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          Map<String, dynamic>? userData =
+              userDoc.data() as Map<String, dynamic>?;
+
+          if (userData != null) {
+            setState(() {
+              _accountName =
+                  '${userData['firstName'] ?? 'No First Name'} ${userData['lastName'] ?? 'No Last Name'}';
+              _accountEmail = user.email ?? 'No Email';
+              _profileImageUrl = userData['profileImageUrl'] ?? '';
+            });
+          } else {
+            print('User document data is null.');
+          }
+        } else {
+          print('User document does not exist in Firestore.');
+        }
+      } else {
+        print('No current user in FirebaseAuth.');
+      }
+    } catch (e) {
+      print('Error fetching user data: $e');
+    }
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -374,67 +611,353 @@ class _MainPageState extends State<MainPage> {
     });
   }
 
+  void _openSettingsModal(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Settings'),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.lock),
+                title: const Text('Change Password'),
+                onTap: () {
+                  Navigator.pop(context); // Close the dialog
+                  _showPasswordChangeDialog();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete),
+                title: const Text('Delete Account'),
+                onTap: () {
+                  Navigator.pop(context); // Close the dialog
+                  _confirmDeleteAccount();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _changePassword() async {
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      _showErrorDialog("Passwords do not match.");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await user.updatePassword(_newPasswordController.text);
+        _showSuccessSnackbar("Password changed successfully.");
+      }
+    } catch (e) {
+      _showErrorDialog("Password change failed: $e");
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _deleteAccount() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await user.delete();
+        _showSuccessSnackbar("Account deleted successfully.");
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LoginPage(toggleTheme: widget.toggleTheme),
+          ),
+          (Route<dynamic> route) => false,
+        );
+      }
+    } catch (e) {
+      _showErrorDialog("Account deletion failed: $e");
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showSuccessSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showPasswordChangeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Change Password'),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Old Password',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _newPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'New Password',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _confirmPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm New Password',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: _isLoading ? null : _changePassword,
+              style: ButtonStyle(
+                backgroundColor:
+                    MaterialStateProperty.all<Color>(Colors.blueAccent),
+                foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
+              ),
+              child: const Text('Change Password'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteAccount() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Delete Account'),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+          content: const Text('Are you sure you want to delete this account?'),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      Navigator.of(context).pop();
+                      _deleteAccount();
+                    },
+              style: ButtonStyle(
+                backgroundColor: MaterialStateProperty.all<Color>(Colors.red),
+                foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('An Error Occurred'),
+        content: Text(message),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('Okay'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          )
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Success'),
+        content: Text(message),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('Okay'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final List<Widget> pages = [
+      widget.userType == 'Caregiver'
+          ? CaregiversHomePage(toggleTheme: widget.toggleTheme)
+          : HomePage(
+              userType: widget.userType, toggleTheme: widget.toggleTheme),
+      const MessagesPage(),
+      const NotificationsPage(),
+      const ProfilePage(),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: Center(
-            child: Image.asset(
-                'assets/images/logo.png')), // Displaying the logo centered
+          child: Image.asset('assets/images/logo.png'),
+        ),
         actions: <Widget>[
+          if (widget.userType == 'Client') // Show Add icon only for Clients
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CreatePostPage(),
+                  ),
+                );
+              },
+            ),
           IconButton(
-            icon: const Icon(Icons.add), // Add post icon
+            icon: const Icon(Icons.settings),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) =>
-                        const CreatePostPage()), // Navigate to CreatePostPage
-              );
+              _openSettingsModal(context); // Open settings dialog
             },
-          ),
-          IconButton(
-            icon: const Icon(Icons.dark_mode), // Dark mode toggle icon
-            onPressed: widget.toggleTheme, // Toggle dark mode
           ),
         ],
       ),
       drawer: Drawer(
         child: Column(
           children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(
+            UserAccountsDrawerHeader(
+              accountName: Text(_accountName),
+              accountEmail: Text(_accountEmail),
+              currentAccountPicture: CircleAvatar(
+                backgroundColor: Colors.white,
+                backgroundImage: _profileImageUrl.isNotEmpty
+                    ? NetworkImage(_profileImageUrl)
+                    : null,
+                child: _profileImageUrl.isEmpty
+                    ? const Icon(
+                        Icons.person,
+                        size: 40.0,
+                        color: Colors.grey,
+                      )
+                    : null,
+              ),
+              decoration: const BoxDecoration(
                 color: Colors.blue,
               ),
-              child: Center(
-                child: Text(
-                  'Navigation',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                  ),
+            ),
+            Expanded(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.dark_mode),
+                      title: const Text('Dark Mode'),
+                      onTap: widget.toggleTheme,
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.logout),
+                      title: const Text('Logout'),
+                      onTap: () {
+                        FirebaseAuth.instance.signOut();
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                LoginPage(toggleTheme: widget.toggleTheme),
+                          ),
+                          (Route<dynamic> route) => false,
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
-            const Spacer(), // Pushes the logout button to the bottom
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Logout'),
-              onTap: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) =>
-                          LoginPage(toggleTheme: widget.toggleTheme)),
-                  (Route<dynamic> route) => false,
-                );
-              },
-            ),
-            const SizedBox(height: 10),
           ],
         ),
       ),
-      body: _pages[_selectedIndex],
+      body: pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -455,9 +978,9 @@ class _MainPageState extends State<MainPage> {
           ),
         ],
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue, // Selected icon color
-        unselectedItemColor: Colors.grey, // Unselected icon color
-        backgroundColor: Colors.blue, // Background color
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        backgroundColor: Colors.blue,
         onTap: _onItemTapped,
       ),
     );

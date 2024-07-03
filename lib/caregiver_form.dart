@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:firebase_storage/firebase_storage.dart';
+// ignore: unused_import
+import 'package:seniorcare/main.dart'; // Update import path if necessary
 
 class CaregiverFormPage extends StatefulWidget {
   final void Function() toggleTheme;
+
   const CaregiverFormPage({super.key, required this.toggleTheme});
 
   @override
-  // ignore: library_private_types_in_public_api
   _CaregiverFormPageState createState() => _CaregiverFormPageState();
 }
 
@@ -19,11 +26,97 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
   final TextEditingController _expertiseController = TextEditingController();
   DateTime _dob = DateTime.now();
   bool _isMale = true;
+  bool _isLoading = false;
+  XFile? _profileImage;
+
+  Future<void> _pickImage(ImageSource source) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: source);
+    setState(() {
+      _profileImage = image;
+    });
+  }
+
+  Future<String?> _uploadImage(File imageFile) async {
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+
+      String filePath = 'profileImages/${user.uid}.png';
+      await FirebaseStorage.instance.ref(filePath).putFile(imageFile);
+      String downloadURL =
+          await FirebaseStorage.instance.ref(filePath).getDownloadURL();
+      return downloadURL;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to upload image: $e')),
+      );
+      return null;
+    }
+  }
+
+  Future<void> _submitForm() async {
+    if (_firstNameController.text.isEmpty ||
+        _lastNameController.text.isEmpty ||
+        _locationController.text.isEmpty ||
+        _contactNumberController.text.isEmpty ||
+        _expertiseController.text.isEmpty ||
+        _profileImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content:
+                Text('Please fill out all fields and upload a profile image.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in.');
+      }
+
+      String? profileImageUrl = await _uploadImage(File(_profileImage!.path));
+      if (profileImageUrl == null) {
+        throw Exception('Failed to upload profile image.');
+      }
+
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'firstName': _firstNameController.text,
+        'lastName': _lastNameController.text,
+        'location': _locationController.text,
+        'contactNumber': _contactNumberController.text,
+        'expertise': _expertiseController.text,
+        'dob': _dob,
+        'gender': _isMale ? 'Male' : 'Female',
+        'email': user.email,
+        'profileImageUrl': profileImageUrl,
+        'userType': 'Caregiver',
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed up successfully')),
+      );
+
+      Navigator.popUntil(context, (route) => route.isFirst);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save form data: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text('Caregiver Registration'),
         actions: [
@@ -34,10 +127,34 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
         ],
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: <Widget>[
+              const SizedBox(height: 20),
+              Center(
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundImage: _profileImage != null
+                          ? FileImage(File(_profileImage!.path))
+                          : null,
+                      child: _profileImage == null
+                          ? const Icon(Icons.image, size: 50)
+                          : null,
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: IconButton(
+                        icon: const Icon(Icons.camera_alt),
+                        onPressed: () => _pickImage(ImageSource.gallery),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -158,30 +275,20 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
               TextField(
                 controller: _expertiseController,
                 decoration: InputDecoration(
-                  labelText: 'Area of Expertise',
+                  labelText: 'Expertise',
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18)),
                 ),
                 style: const TextStyle(fontSize: 14),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
               ElevatedButton(
-                onPressed: () {
-                  // Handle caregiver form submission logic here
-                },
-                style: ButtonStyle(
-                  backgroundColor:
-                      MaterialStateProperty.all<Color>(Colors.blueAccent),
-                  foregroundColor:
-                      MaterialStateProperty.all<Color>(Colors.white),
-                  padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
-                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15)),
-                  shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                    RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30)),
-                  ),
-                ),
-                child: const Text('Submit'),
+                onPressed: _isLoading ? null : _submitForm,
+                child: _isLoading
+                    ? const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      )
+                    : const Text('Submit'),
               ),
             ],
           ),
