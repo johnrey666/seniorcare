@@ -1,16 +1,14 @@
-// createpost.dart
-
-// ignore_for_file: avoid_print, library_private_types_in_public_api
+// ignore_for_file: library_private_types_in_public_api
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart'; // for file uploads
+import 'package:firebase_storage/firebase_storage.dart';
 
 class CreatePostPage extends StatefulWidget {
-  const CreatePostPage({super.key});
+  const CreatePostPage({Key? key}) : super(key: key);
 
   @override
   _CreatePostPageState createState() => _CreatePostPageState();
@@ -22,14 +20,30 @@ class _CreatePostPageState extends State<CreatePostPage> {
   final TextEditingController _locationController = TextEditingController();
   File? _selectedImage;
   bool _isLoading = false;
+  bool _isImagePickerActive = false;
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (_isImagePickerActive) {
+      return;
+    }
 
-    if (pickedFile != null) {
+    setState(() {
+      _isImagePickerActive = true;
+    });
+
+    final picker = ImagePicker();
+    try {
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+    } finally {
       setState(() {
-        _selectedImage = File(pickedFile.path);
+        _isImagePickerActive = false;
       });
     }
   }
@@ -103,6 +117,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Post submitted successfully!')),
       );
+
+      // Navigate to homepage
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       _showErrorDialog("Failed to submit post: $e");
     } finally {
@@ -132,6 +149,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   @override
   Widget build(BuildContext context) {
+    bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    Color textColor = isDarkMode ? Colors.white : Colors.black;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Create Post'),
@@ -140,73 +160,86 @@ class _CreatePostPageState extends State<CreatePostPage> {
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              const Text(
-                'Post Title',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
               TextField(
                 controller: _titleController,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
                 decoration: InputDecoration(
+                  hintText: 'Title',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8.0),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  hintText: 'Enter post title',
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Description',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               TextField(
                 controller: _descriptionController,
-                maxLines: 4,
+                maxLines: 6,
+                style: TextStyle(color: textColor),
                 decoration: InputDecoration(
+                  hintText: 'Description',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8.0),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  hintText: 'Enter description',
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Location',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               TextField(
                 controller: _locationController,
+                style: TextStyle(color: textColor),
                 decoration: InputDecoration(
+                  hintText: 'Add location (optional)',
+                  prefixIcon:
+                      Icon(Icons.location_on_outlined, color: textColor),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8.0),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  hintText: 'Enter location',
                 ),
               ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _pickImage,
-                child: const Text('Add Image (Optional)'),
+                child: const Text('Add Image'),
               ),
-              const SizedBox(height: 16),
-              if (_selectedImage != null)
-                Image.file(
-                  _selectedImage!,
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+              if (_selectedImage != null) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.circular(12),
+                      image: DecorationImage(
+                        image: FileImage(_selectedImage!),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
                 ),
+              ],
               const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _submitPost,
+                style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all(Colors.blue),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'Post',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
               if (_isLoading)
-                const Center(child: CircularProgressIndicator())
-              else
-                ElevatedButton(
-                  onPressed: _submitPost,
-                  child: const Text('Submit Post'),
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
                 ),
             ],
           ),

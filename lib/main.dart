@@ -5,11 +5,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:seniorcare/forgotpassword.dart';
-import 'homepage.dart';
+import 'package:seniorcare/homepage.dart';
+import 'package:seniorcare/userprofile.dart';
+
 import 'client_form.dart';
 import 'caregiver_form.dart';
 import 'messages.dart';
 import 'notifications.dart';
+// ignore: unused_import
 import 'profile.dart';
 import 'createpost.dart';
 import 'caregivershomepage.dart';
@@ -28,7 +31,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.light; // Light mode by default
+  ThemeMode _themeMode = ThemeMode.light;
 
   void _toggleTheme() {
     setState(() {
@@ -95,7 +98,6 @@ class _LoginPageState extends State<LoginPage> {
 
       String userType = userDoc['userType'];
 
-      // Navigate to MainPage with userType
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -117,7 +119,7 @@ class _LoginPageState extends State<LoginPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Login Failed'),
-        content: const Text('Wrong Email or Password'),
+        content: Text(message),
         actions: <Widget>[
           TextButton(
             child: const Text('Okay'),
@@ -238,7 +240,7 @@ class _LoginPageState extends State<LoginPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => ForgotPasswordPage()),
+                        builder: (context) => const ForgotPasswordPage()),
                   );
                 },
                 style: ButtonStyle(
@@ -272,7 +274,7 @@ class _SignUpPageState extends State<SignUpPage> {
   String? _selectedUserType;
   final List<String> _userTypes = ['Caregiver', 'Client'];
   bool _isLoading = false;
-  bool _passwordVisible = false; // Track password visibility
+  bool _passwordVisible = false;
 
   void _togglePasswordVisibility() {
     setState(() {
@@ -300,33 +302,29 @@ class _SignUpPageState extends State<SignUpPage> {
       Map<String, dynamic> userData = {
         'email': _emailController.text,
         'userType': _selectedUserType,
-        'firstName': '', // Initialize firstName
-        'lastName': '', // Initialize lastName
-        'profileImage': '', // Initialize profileImage
+        'firstName': '',
+        'lastName': '',
+        'profileImage': '',
       };
 
       if (_selectedUserType == 'Client') {
-        // Add client-specific data from form
         userData.addAll({
-          'agreedToShareInfo': false, // Example field
-          'condition': '', // Example field
-          'expertise': '', // Example field
+          'agreedToShareInfo': false,
+          'condition': '',
+          'expertise': '',
         });
       } else if (_selectedUserType == 'Caregiver') {
-        // Add caregiver-specific data from form
         userData.addAll({
-          'qualification': '', // Example field
-          'experience': '', // Example field
+          'qualification': '',
+          'experience': '',
         });
       }
 
-      // Save user data to 'users' collection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userCredential.user!.uid)
           .set(userData);
 
-      // Navigate to respective form page based on user type
       if (_selectedUserType == 'Caregiver') {
         Navigator.pushReplacement(
           context,
@@ -717,70 +715,128 @@ class _MainPageState extends State<MainPage> {
   }
 
   void _showPasswordChangeDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Change Password'),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Old Password',
-                  border: OutlineInputBorder(),
+  bool _showPassword = false; // State variable to toggle password visibility
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Change Password'),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
                 ),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _newPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _confirmPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm New Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: _isLoading ? null : _changePassword,
-              style: ButtonStyle(
-                backgroundColor:
-                    MaterialStateProperty.all<Color>(Colors.blueAccent),
-                foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
-              ),
-              child: const Text('Change Password'),
+              ],
             ),
-          ],
-        );
-      },
-    );
-  }
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _passwordController,
+                  obscureText: !_showPassword, // Toggle visibility based on _showPassword
+                  decoration: InputDecoration(
+                    labelText: 'Old Password',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showPassword ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showPassword = !_showPassword; // Toggle password visibility
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _newPasswordController,
+                  obscureText: !_showPassword, // Toggle visibility based on _showPassword
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showPassword ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showPassword = !_showPassword; // Toggle password visibility
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _confirmPasswordController,
+                  obscureText: !_showPassword, // Toggle visibility based on _showPassword
+                  decoration: InputDecoration(
+                    labelText: 'Confirm New Password',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showPassword ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showPassword = !_showPassword; // Toggle password visibility
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: _isLoading ? null : _changePassword,
+                style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all<Color>(Colors.blueAccent),
+                  foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
+                  shape: MaterialStateProperty.all<RoundedRectangleBorder>(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                  ),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  child: Text(
+                    'Change Password',
+                    style: TextStyle(
+                      fontSize: 16.0,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
 
   void _confirmDeleteAccount() {
     showDialog(
@@ -872,7 +928,10 @@ class _MainPageState extends State<MainPage> {
               userType: widget.userType, toggleTheme: widget.toggleTheme),
       const MessagesPage(),
       const NotificationsPage(),
-      const ProfilePage(),
+      UserProfilePage(
+        userId: FirebaseAuth.instance.currentUser!.uid,
+        isCurrentUser: true, // Ensure this flag is set
+      ),
     ];
 
     return Scaffold(
@@ -881,7 +940,7 @@ class _MainPageState extends State<MainPage> {
           child: Image.asset('assets/images/logo.png'),
         ),
         actions: <Widget>[
-          if (widget.userType == 'Client') // Show Add icon only for Clients
+          if (widget.userType == 'Client')
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: () {
@@ -896,7 +955,7 @@ class _MainPageState extends State<MainPage> {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              _openSettingsModal(context); // Open settings dialog
+              _openSettingsModal(context);
             },
           ),
         ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'userprofile.dart'; // Import your UserProfilePage
 
 class CaregiversHomePage extends StatelessWidget {
   final void Function() toggleTheme;
@@ -9,24 +11,20 @@ class CaregiversHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(10.0),
+          preferredSize: const Size.fromHeight(40.0),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 15.0, vertical: 1.0),
+            padding: const EdgeInsets.all(8.0),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search',
-                filled: true,
-                fillColor: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey[800]
-                    : Colors.white,
+                labelText: 'Search',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30.0),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(24),
                 ),
               ),
             ),
@@ -62,86 +60,139 @@ class CaregiversHomePage extends StatelessWidget {
                 var description = data['description'] ?? 'No Description';
                 var location = data['location'] ?? 'No Location';
                 var imagePath = data['imagePath'];
+                var clientId = data['userId'];
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
+                return Card(
+                  elevation: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundImage: userPhotoUrl.isNotEmpty
-                                ? NetworkImage(userPhotoUrl)
-                                : const AssetImage('assets/default_avatar.jpg')
-                                    as ImageProvider,
-                            child: userPhotoUrl.isEmpty
-                                ? const Icon(Icons.person)
-                                : null,
-                          ),
-                          const SizedBox(width: 8.0),
-                          Text(userName),
-                          const Spacer(),
-                          const Icon(Icons.bookmark_border),
-                        ],
-                      ),
-                      const SizedBox(height: 16.0),
-                      Text(
-                        title,
-                        style: const TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 16.0),
-                      Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: const Color.fromARGB(255, 241, 199, 139),
-                            width: 0.5,
-                          ),
-                          color: Colors.grey[300],
-                        ),
-                        child: imagePath != null
-                            ? Image.network(
-                                imagePath,
-                                fit: BoxFit.fill,
-                                width: double.infinity,
-                                height: 200, // Set height here
-                              )
-                            : Center(
-                                child: Icon(Icons.image,
-                                    size: 100, color: Colors.grey[700]),
+                      Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: GestureDetector(
+                          onTap: () {
+                            // Navigate to UserProfilePage
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => UserProfilePage(
+                                  userId: clientId,
+                                  isCurrentUser: currentUser?.uid == clientId,
+                                ),
                               ),
-                      ),
-                      const SizedBox(height: 16.0),
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on),
-                          const SizedBox(width: 4.0),
-                          Text(location),
-                        ],
-                      ),
-                      const SizedBox(height: 16.0),
-                      Text(
-                        description,
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 16.0),
-                      ElevatedButton(
-                        onPressed: () {
-                          // Implement apply functionality here
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          textStyle: const TextStyle(color: Colors.white),
-                          minimumSize: const Size(150, 36),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
+                            );
+                          },
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundImage: userPhotoUrl.isNotEmpty
+                                    ? NetworkImage(userPhotoUrl)
+                                    : const AssetImage(
+                                            'assets/default_avatar.jpg')
+                                        as ImageProvider,
+                                radius: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      userName,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      location,
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.bookmark_border),
+                                onPressed: () {
+                                  // Implement bookmark functionality
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                        child: const Text('Apply'),
                       ),
-                      const Divider(),
+                      if (imagePath != null)
+                        Container(
+                          height: 200,
+                          decoration: BoxDecoration(
+                            image: DecorationImage(
+                              image: NetworkImage(imagePath),
+                              fit: BoxFit.cover,
+                            ),
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(1),
+                            ),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 8),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              description,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: () {
+                                _applyForJob(
+                                  clientId,
+                                  currentUser!.uid,
+                                  userName,
+                                  currentUser.displayName ?? 'Anonymous',
+                                  userPhotoUrl,
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  vertical: 10,
+                                  horizontal: 20,
+                                ),
+                                child: Text(
+                                  'Apply',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -151,5 +202,17 @@ class CaregiversHomePage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _applyForJob(String clientId, String caregiverId,
+      String clientName, String caregiverName, String caregiverPhotoUrl) async {
+    await FirebaseFirestore.instance.collection('hireRequests').add({
+      'senderId': caregiverId,
+      'caregiverId': clientId,
+      'senderName': caregiverName,
+      'avatarUrl': caregiverPhotoUrl,
+      'status': 'Pending',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
   }
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:seniorcare/userprofile.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   final void Function() toggleTheme;
 
   const HomePage({
@@ -9,6 +11,33 @@ class HomePage extends StatelessWidget {
     required this.toggleTheme,
     required String userType,
   }) : super(key: key);
+
+  @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text.toLowerCase();
+    });
+  }
 
   String calculateAge(Timestamp dob) {
     DateTime now = DateTime.now();
@@ -21,17 +50,87 @@ class HomePage extends StatelessWidget {
     return '$age years old';
   }
 
-  void _showDetails(BuildContext context, DocumentSnapshot caregiverSnapshot) {
-    // Fetch additional details from Firestore
+  Future<void> _hireCaregiver(
+      BuildContext context, DocumentSnapshot caregiverSnapshot) async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('You must be logged in to hire a caregiver.')),
+      );
+      return;
+    }
+
+    // Check if a hire request already exists
+    QuerySnapshot existingRequest = await FirebaseFirestore.instance
+        .collection('hireRequests')
+        .where('senderId', isEqualTo: currentUser.uid)
+        .where('caregiverId', isEqualTo: caregiverSnapshot.id)
+        .get();
+
+    if (existingRequest.docs.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'You have already sent a hire request to this caregiver.')),
+      );
+      return;
+    }
+
+    DocumentSnapshot currentUserSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .get();
+
+    String senderName =
+        '${currentUserSnapshot['firstName']} ${currentUserSnapshot['lastName']}';
+    String avatarUrl = currentUserSnapshot['profileImageUrl'];
+
+    await FirebaseFirestore.instance.collection('hireRequests').add({
+      'senderId': currentUser.uid,
+      'senderName': senderName,
+      'avatarUrl': avatarUrl,
+      'caregiverId': caregiverSnapshot.id,
+      'caregiverName':
+          '${caregiverSnapshot['firstName']} ${caregiverSnapshot['lastName']}',
+      'status': 'Pending',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Hire request sent successfully.')),
+    );
+
+    // Close the modal
+    Navigator.of(context).pop();
+  }
+
+  Future<bool> _isAlreadyHired(DocumentSnapshot caregiverSnapshot) async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      return false;
+    }
+
+    // Check if a hire request with "Accepted" status already exists
+    QuerySnapshot acceptedRequest = await FirebaseFirestore.instance
+        .collection('hireRequests')
+        .where('senderId', isEqualTo: currentUser.uid)
+        .where('caregiverId', isEqualTo: caregiverSnapshot.id)
+        .where('status', isEqualTo: 'Accepted')
+        .get();
+
+    return acceptedRequest.docs.isNotEmpty;
+  }
+
+  void _showDetails(
+      BuildContext context, DocumentSnapshot caregiverSnapshot) async {
     String lastName = caregiverSnapshot['lastName'];
     String firstName = caregiverSnapshot['firstName'];
-    String expertise = caregiverSnapshot['expertise'];
-    Timestamp dobTimestamp =
-        caregiverSnapshot['dob']; // Date of birth as Timestamp
-    String dob = calculateAge(dobTimestamp); // Calculate age from Timestamp
-    String location = caregiverSnapshot['location'];
-    String contactNumber = caregiverSnapshot['contactNumber'];
     String profileImageUrl = caregiverSnapshot['profileImageUrl'];
+
+    bool isAlreadyHired = await _isAlreadyHired(caregiverSnapshot);
 
     showModalBottomSheet(
       context: context,
@@ -79,13 +178,19 @@ class HomePage extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      '$lastName, $firstName',
+                      '$firstName $lastName',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 20,
                       ),
                     ),
-                    const Text('Caregiver'),
+                    const Text(
+                      'Caregiver',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -97,79 +202,79 @@ class HomePage extends StatelessWidget {
                         );
                       }),
                     ),
-                    const SizedBox(height: 5),
-                    TextButton(
-                      onPressed: () {
-                        // Handle view all reviews action
-                      },
-                      child: const Text('View all reviews'),
-                    ),
                     const SizedBox(height: 20),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'DESCRIPTION',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Expertise: $expertise'),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Age: $dob'),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Location: $location'),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Contact Number: $contactNumber'),
-                    ),
-                    const SizedBox(height: 20),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'DOCUMENTS ATTACH',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        Expanded(
-                          child: Container(
-                            height: 100,
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(
-                                Icons.attach_file,
-                                size: 50,
-                                color: Colors.grey,
+                        if (isAlreadyHired)
+                          ElevatedButton(
+                            onPressed: null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey,
+                              textStyle: const TextStyle(
+                                fontSize: 20,
+                                color: Colors.white,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10.0),
+                              ),
+                            ),
+                            child: const Text(
+                              'Hired',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                          )
+                        else
+                          ElevatedButton(
+                            onPressed: () =>
+                                _hireCaregiver(context, caregiverSnapshot),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              textStyle: const TextStyle(
+                                fontSize: 20,
+                                color: Colors.white,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10.0),
+                              ),
+                            ),
+                            child: const Text(
+                              'Hire',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Container(
-                            height: 100,
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(
-                                Icons.attach_file,
-                                size: 50,
-                                color: Colors.grey,
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => UserProfilePage(
+                                  userId: caregiverSnapshot.id,
+                                ),
                               ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            textStyle: const TextStyle(
+                              fontSize: 20,
+                              color: Colors.white,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10.0),
+                            ),
+                          ),
+                          child: const Text(
+                            'View',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
                             ),
                           ),
                         ),
@@ -190,20 +295,16 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(10.0),
+          preferredSize: const Size.fromHeight(40.0),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            padding: const EdgeInsets.all(8.0),
             child: TextField(
+              controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search',
-                filled: true,
-                fillColor: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey[800]
-                    : Colors.white,
+                labelText: 'Search',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30.0),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(24),
                 ),
               ),
             ),
@@ -214,7 +315,7 @@ class HomePage extends StatelessWidget {
         padding: const EdgeInsets.all(8.0),
         child: StreamBuilder(
           stream: FirebaseFirestore.instance
-              .collection('users') // Adjust collection name if needed
+              .collection('users')
               .where('userType', isEqualTo: 'Caregiver')
               .snapshots(),
           builder:
@@ -225,8 +326,19 @@ class HomePage extends StatelessWidget {
               );
             }
 
+            List<DocumentSnapshot> caregivers = snapshot.data!.docs;
+
+            if (_searchQuery.isNotEmpty) {
+              caregivers = caregivers.where((doc) {
+                String firstName = doc['firstName'].toString().toLowerCase();
+                String lastName = doc['lastName'].toString().toLowerCase();
+                return firstName.contains(_searchQuery) ||
+                    lastName.contains(_searchQuery);
+              }).toList();
+            }
+
             return GridView.builder(
-              itemCount: snapshot.data!.docs.length,
+              itemCount: caregivers.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 mainAxisSpacing: 20.0,
@@ -234,34 +346,37 @@ class HomePage extends StatelessWidget {
                 childAspectRatio: 0.75,
               ),
               itemBuilder: (BuildContext context, int index) {
-                DocumentSnapshot caregiverSnapshot = snapshot.data!.docs[index];
+                DocumentSnapshot caregiverSnapshot = caregivers[index];
                 String lastName = caregiverSnapshot['lastName'];
                 String firstName = caregiverSnapshot['firstName'];
+                String expertise = caregiverSnapshot['expertise'];
                 String profileImageUrl = caregiverSnapshot['profileImageUrl'];
 
-                return Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
-                  elevation: 3.0,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
+                return GestureDetector(
+                  onTap: () => _showDetails(context, caregiverSnapshot),
+                  child: Card(
+                    elevation: 2.0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15.0),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          height: 100,
+                          height: 120,
                           decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(15),
+                              topRight: Radius.circular(15),
+                            ),
                             image: profileImageUrl.isNotEmpty
                                 ? DecorationImage(
                                     image: NetworkImage(profileImageUrl),
                                     fit: BoxFit.cover,
                                   )
                                 : const DecorationImage(
-                                    image:
-                                        AssetImage('assets/images/default.png'),
+                                    image: AssetImage(
+                                        'assets/default_profile_image.jpg'),
                                     fit: BoxFit.cover,
                                   ),
                           ),
@@ -275,36 +390,37 @@ class HomePage extends StatelessWidget {
                                 )
                               : null,
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 5),
                         Row(
                           children: List.generate(5, (starIndex) {
                             return const Icon(
                               Icons.star_border,
                               color: Colors.amber,
-                              size: 20,
+                              size: 25,
                             );
                           }),
                         ),
-                        const SizedBox(height: 5),
-                        Text(
-                          '$lastName, $firstName',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$firstName $lastName',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                expertise,
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () =>
-                              _showDetails(context, caregiverSnapshot),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            minimumSize: const Size(150, 36),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                          child: const Text('View'),
                         ),
                       ],
                     ),
