@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart'; // Import the intl package
 
 extension StringExtension on String {
@@ -56,8 +57,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
           ? null
           : AppBar(
               backgroundColor: Colors.white,
-              iconTheme:
-                  const IconThemeData(color: Color.fromARGB(255, 52, 68, 76)),
+              iconTheme: const IconThemeData(
+                color: Color.fromARGB(255, 52, 68, 76),
+              ),
               titleTextStyle: const TextStyle(
                 color: Color.fromARGB(255, 0, 0, 0),
                 fontSize: 20,
@@ -66,7 +68,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
               elevation: 0,
               title: Text(fullName),
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const FaIcon(FontAwesomeIcons.arrowLeft),
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
@@ -135,13 +137,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             );
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
+                            backgroundColor:
+                                const Color.fromRGBO(255, 255, 255, 1),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
                           ),
-                          icon: const Icon(Icons.edit),
-                          label: const Text('Edit Profile'),
+                          icon: const FaIcon(
+                            FontAwesomeIcons.pen,
+                            color: Colors.blue,
+                          ),
+                          label: const Text(
+                            'Edit Profile',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
                   ],
@@ -155,9 +167,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         children: [
                           Text(
                             '$firstName $lastName',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.light
+                                  ? Colors.black
+                                  : Colors
+                                      .white, // Adjust text color for dark mode
                             ),
                           ),
                           if (isVerified)
@@ -180,39 +197,34 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       const SizedBox(height: 16),
                       if (isClientUser)
                         ProfileDetail(
-                          icon: Icons.person,
+                          icon: FontAwesomeIcons.person,
                           title: 'Patient Name',
                           value: patientName,
-                          textColor: Colors.lightBlue,
-                          iconColor: Colors.blue,
+                          textColor: Colors.grey,
                         ),
                       ProfileDetail(
-                        icon: Icons.work,
+                        icon: FontAwesomeIcons.briefcase,
                         title: 'Expertise',
                         value: expertise,
-                        textColor: Colors.lightBlue,
-                        iconColor: Colors.blue,
+                        textColor: Colors.grey,
                       ),
                       ProfileDetail(
-                        icon: Icons.location_on,
+                        icon: FontAwesomeIcons.locationDot,
                         title: 'Location',
                         value: location,
-                        textColor: Colors.lightBlue,
-                        iconColor: Colors.blue,
+                        textColor: Colors.grey,
                       ),
                       ProfileDetail(
-                        icon: Icons.phone,
+                        icon: FontAwesomeIcons.phone,
                         title: 'Contact',
                         value: contactNumber,
-                        textColor: Colors.lightBlue,
-                        iconColor: Colors.blue,
+                        textColor: Colors.grey,
                       ),
                       ProfileDetail(
-                        icon: Icons.cake,
+                        icon: FontAwesomeIcons.calendarWeek,
                         title: 'Date of Birth',
                         value: dob,
-                        textColor: Colors.lightBlue,
-                        iconColor: Colors.blue,
+                        textColor: Colors.grey,
                       ),
                       const SizedBox(height: 16),
                       const Text(
@@ -318,14 +330,12 @@ class ProfileDetail extends StatelessWidget {
   final String title;
   final String value;
   final Color? textColor;
-  final Color? iconColor;
 
   const ProfileDetail({
     required this.icon,
     required this.title,
     required this.value,
     this.textColor,
-    this.iconColor,
     Key? key,
   }) : super(key: key);
 
@@ -337,7 +347,9 @@ class ProfileDetail extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color: iconColor ?? Colors.blueGrey,
+            color: Theme.of(context).brightness == Brightness.light
+                ? Colors.blueGrey
+                : Colors.white, // Adjust icon color for dark mode
             size: 30,
           ),
           const SizedBox(width: 16),
@@ -347,10 +359,12 @@ class ProfileDetail extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey,
+                    color: Theme.of(context).brightness == Brightness.light
+                        ? Colors.black
+                        : Colors.white, // Adjust title color for dark mode
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -358,7 +372,10 @@ class ProfileDetail extends StatelessWidget {
                   value,
                   style: TextStyle(
                     fontSize: 16,
-                    color: textColor ?? Colors.black54,
+                    color: textColor ??
+                        (Theme.of(context).brightness == Brightness.light
+                            ? Colors.black54
+                            : Colors.white), // Adjust text color for dark mode
                   ),
                 ),
               ],

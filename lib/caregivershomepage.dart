@@ -3,16 +3,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'userprofile.dart'; // Import your UserProfilePage
 
-class CaregiversHomePage extends StatelessWidget {
+class CaregiversHomePage extends StatefulWidget {
   final void Function() toggleTheme;
 
   const CaregiversHomePage({Key? key, required this.toggleTheme})
       : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    User? currentUser = FirebaseAuth.instance.currentUser;
+  _CaregiversHomePageState createState() => _CaregiversHomePageState();
+}
 
+class _CaregiversHomePageState extends State<CaregiversHomePage> {
+  User? currentUser = FirebaseAuth.instance.currentUser;
+  List<String> savedPosts = []; // List to store saved post IDs
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         bottom: PreferredSize(
@@ -22,7 +28,7 @@ class CaregiversHomePage extends StatelessWidget {
             child: TextField(
               decoration: InputDecoration(
                 labelText: 'Search',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search_sharp),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                 ),
@@ -61,6 +67,9 @@ class CaregiversHomePage extends StatelessWidget {
                 var location = data['location'] ?? 'No Location';
                 var imagePath = data['imagePath'];
                 var clientId = data['userId'];
+                var postId = post.id;
+
+                bool isPostSaved = savedPosts.contains(postId);
 
                 return Card(
                   elevation: 4,
@@ -119,9 +128,24 @@ class CaregiversHomePage extends StatelessWidget {
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.bookmark_border),
+                                icon: isPostSaved
+                                    ? const Icon(Icons.bookmark)
+                                    : const Icon(Icons.bookmark_border),
                                 onPressed: () {
-                                  // Implement bookmark functionality
+                                  setState(() {
+                                    if (isPostSaved) {
+                                      savedPosts.remove(postId);
+                                    } else {
+                                      savedPosts.add(postId);
+                                    }
+                                  });
+
+                                  // Show Snackbar
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Post Saved!'),
+                                    ),
+                                  );
                                 },
                               ),
                             ],
@@ -166,7 +190,7 @@ class CaregiversHomePage extends StatelessWidget {
                                   clientId,
                                   currentUser!.uid,
                                   userName,
-                                  currentUser.displayName ?? 'Anonymous',
+                                  currentUser?.displayName ?? 'Anonymous',
                                   userPhotoUrl,
                                 );
                               },

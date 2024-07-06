@@ -2,6 +2,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:seniorcare/userprofile.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -273,13 +274,13 @@ class _ConversationPageState extends State<ConversationPage> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.image, size: 30),
+                  icon: const FaIcon(FontAwesomeIcons.solidFileImage, size: 30),
                   onPressed: () {
                     _pickImage(context);
                   },
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, size: 30),
+                  icon: const FaIcon(FontAwesomeIcons.paperPlane),
                   onPressed: () {
                     _sendMessage();
                   },

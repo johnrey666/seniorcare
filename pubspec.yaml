@@ -20,6 +20,9 @@ dependencies:
   firebase_auth: ^5.1.1 # Updated to the latest
   cloud_firestore: ^5.0.2 # Updated to the latest
   firebase_storage: ^12.1.0
+  fluttericon: ^2.0.0
+  font_awesome_flutter: ^10.7.0
+  google_fonts: ^6.2.0
   path: ^1.9.0
 dev_dependencies:
   flutter_test:
