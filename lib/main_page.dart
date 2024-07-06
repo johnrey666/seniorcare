@@ -15,7 +15,6 @@ import 'profile.dart';
 import 'createpost.dart';
 import 'caregivershomepage.dart';
 
-
 class MainPage extends StatefulWidget {
   final String userType;
   final void Function() toggleTheme;

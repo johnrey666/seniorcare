@@ -6,8 +6,7 @@ import 'userprofile.dart'; // Import your UserProfilePage
 class CaregiversHomePage extends StatefulWidget {
   final void Function() toggleTheme;
 
-  const CaregiversHomePage({Key? key, required this.toggleTheme})
-      : super(key: key);
+  const CaregiversHomePage({super.key, required this.toggleTheme});
 
   @override
   _CaregiversHomePageState createState() => _CaregiversHomePageState();
@@ -22,13 +21,13 @@ class _CaregiversHomePageState extends State<CaregiversHomePage> {
     return Scaffold(
       appBar: AppBar(
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(40.0),
+          preferredSize: const Size.fromHeight(30.0),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
             child: TextField(
               decoration: InputDecoration(
                 labelText: 'Search',
-                prefixIcon: const Icon(Icons.search_sharp),
+                prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                 ),

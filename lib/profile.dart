@@ -6,10 +6,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -18,12 +20,14 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: ProfilePage(),
+      home: const ProfilePage(),
     );
   }
 }
 
 class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
+
   @override
   _ProfilePageState createState() => _ProfilePageState();
 }
@@ -89,7 +93,7 @@ class _ProfilePageState extends State<ProfilePage> {
             }
           });
         },
-        child: Icon(Icons.edit),
+        child: const Icon(Icons.edit),
       ),
     );
   }
@@ -99,7 +103,7 @@ class _ProfilePageState extends State<ProfilePage> {
 class ProfileHeader extends StatelessWidget {
   final UserProfile userProfile;
 
-  const ProfileHeader({Key? key, required this.userProfile}) : super(key: key);
+  const ProfileHeader({super.key, required this.userProfile});
 
   @override
   Widget build(BuildContext context) {
@@ -209,7 +213,7 @@ class ProfileHeader extends StatelessWidget {
 class FileGrid extends StatelessWidget {
   final List<String> attachedFiles;
 
-  const FileGrid({Key? key, required this.attachedFiles}) : super(key: key);
+  const FileGrid({super.key, required this.attachedFiles});
 
   @override
   Widget build(BuildContext context) {
@@ -251,8 +255,7 @@ class FileGrid extends StatelessWidget {
 class EditProfilePage extends StatefulWidget {
   final UserProfile userProfile;
 
-  const EditProfilePage({Key? key, required this.userProfile})
-      : super(key: key);
+  const EditProfilePage({super.key, required this.userProfile});
 
   @override
   _EditProfilePageState createState() => _EditProfilePageState();
@@ -330,11 +333,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Edit Profile'),
+        title: const Text('Edit Profile'),
         actions: [
           IconButton(
             onPressed: _saveProfile,
-            icon: Icon(Icons.check),
+            icon: const Icon(Icons.check),
           ),
         ],
       ),
@@ -351,19 +354,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       showDialog(
                         context: context,
                         builder: (_) => AlertDialog(
-                          title: Text('Choose an option'),
+                          title: const Text('Choose an option'),
                           content: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               ListTile(
-                                title: Text('Camera'),
+                                title: const Text('Camera'),
                                 onTap: () {
                                   _pickImage(ImageSource.camera);
                                   Navigator.pop(context);
                                 },
                               ),
                               ListTile(
-                                title: Text('Gallery'),
+                                title: const Text('Gallery'),
                                 onTap: () {
                                   _pickImage(ImageSource.gallery);
                                   Navigator.pop(context);
@@ -383,7 +386,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               TextFormField(
                 controller: _firstNameController,
-                decoration: InputDecoration(labelText: 'First Name'),
+                decoration: const InputDecoration(labelText: 'First Name'),
                 validator: (value) {
                   if (value!.isEmpty) {
                     return 'Please enter your first name';
@@ -393,7 +396,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               TextFormField(
                 controller: _lastNameController,
-                decoration: InputDecoration(labelText: 'Last Name'),
+                decoration: const InputDecoration(labelText: 'Last Name'),
                 validator: (value) {
                   if (value!.isEmpty) {
                     return 'Please enter your last name';
@@ -403,7 +406,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               TextFormField(
                 controller: _locationController,
-                decoration: InputDecoration(labelText: 'Location'),
+                decoration: const InputDecoration(labelText: 'Location'),
                 validator: (value) {
                   if (value!.isEmpty) {
                     return 'Please enter your location';
@@ -413,7 +416,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               TextFormField(
                 controller: _contactNumberController,
-                decoration: InputDecoration(labelText: 'Contact Number'),
+                decoration: const InputDecoration(labelText: 'Contact Number'),
                 validator: (value) {
                   if (value!.isEmpty) {
                     return 'Please enter your contact number';
@@ -423,7 +426,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               TextFormField(
                 controller: _expertiseController,
-                decoration: InputDecoration(labelText: 'Expertise'),
+                decoration: const InputDecoration(labelText: 'Expertise'),
                 validator: (value) {
                   if (value!.isEmpty) {
                     return 'Please enter your expertise';
@@ -432,7 +435,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 },
               ),
               const SizedBox(height: 16),
-              Text('Date of Birth'),
+              const Text('Date of Birth'),
               const SizedBox(height: 8),
               ElevatedButton(
                 onPressed: () async {

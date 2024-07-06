@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class SavedPostsPage extends StatelessWidget {
+  const SavedPostsPage({super.key});
+
   @override
   Widget build(BuildContext context) {
     // Fetch saved posts for the current user

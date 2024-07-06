@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:intl/intl.dart'; // Import the intl package
+import 'package:intl/intl.dart';
 
 extension StringExtension on String {
   String capitalize() {
@@ -29,6 +29,7 @@ class UserProfilePage extends StatefulWidget {
 class _UserProfilePageState extends State<UserProfilePage> {
   late Future<DocumentSnapshot> userFuture;
   String fullName = 'User Profile';
+  List<Post> userPosts = [];
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     userFuture =
         FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
     _fetchUserData();
+    _fetchUserPosts();
   }
 
   void _fetchUserData() async {
@@ -48,6 +50,18 @@ class _UserProfilePageState extends State<UserProfilePage> {
         fullName = '${first.capitalize()} ${last.capitalize()}';
       });
     }
+  }
+
+  void _fetchUserPosts() async {
+    var postsSnapshot = await FirebaseFirestore.instance
+        .collection('posts')
+        .where('userId', isEqualTo: widget.userId)
+        .get();
+
+    setState(() {
+      userPosts =
+          postsSnapshot.docs.map((doc) => Post.fromDocument(doc)).toList();
+    });
   }
 
   @override
@@ -178,13 +192,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             ),
                           ),
                           if (isVerified)
-                            const Padding(
-                              padding: EdgeInsets.only(left: 8.0),
-                              child: Icon(
-                                Icons.verified,
-                                color: Colors.blue,
-                                size: 24,
-                              ),
+                            const Row(
+                              children: [
+                                SizedBox(width: 8),
+                                Icon(
+                                  Icons.verified,
+                                  color: Colors.blue,
+                                  size: 24,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'verified',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ],
                             ),
                         ],
                       ),
@@ -227,65 +251,138 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         textColor: Colors.grey,
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Attached Documents',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+                      if (isClientUser)
+                        const Text(
+                          'Recent Posts',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 8),
-                      optionalFilesUrls.isNotEmpty
-                          ? GridView.builder(
-                              physics: const NeverScrollableScrollPhysics(),
-                              shrinkWrap: true,
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 10,
-                                mainAxisSpacing: 10,
-                                childAspectRatio: 1.5,
-                              ),
-                              itemCount: optionalFilesUrls.length,
-                              itemBuilder: (context, index) {
-                                return GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => Scaffold(
-                                          appBar: AppBar(),
-                                          body: Center(
-                                            child: InteractiveViewer(
-                                              maxScale: 4.0,
-                                              child: Image.network(
-                                                  optionalFilesUrls[index]),
+                      if (isClientUser)
+                        if (userPosts.isEmpty)
+                          const Center(
+                            child: Text('No posts yet.'),
+                          )
+                        else
+                          ListView.builder(
+                            physics: const NeverScrollableScrollPhysics(),
+                            shrinkWrap: true,
+                            itemCount: userPosts.length,
+                            itemBuilder: (context, index) {
+                              var post = userPosts[index];
+
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (post.imagePath != null)
+                                      Image.network(
+                                        post.imagePath!,
+                                        height: 200,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            post.title,
+                                            style: const TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                        ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            post.description,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Location: ${post.location}',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    );
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.grey),
                                     ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        optionalFilesUrls[index],
-                                        fit: BoxFit.cover,
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                      const SizedBox(height: 16),
+                      if (!isClientUser)
+                        const Text(
+                          'Attached Documents',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      if (optionalFilesUrls.isNotEmpty)
+                        GridView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: 1.5,
+                          ),
+                          itemCount: optionalFilesUrls.length,
+                          itemBuilder: (context, index) {
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => Scaffold(
+                                      appBar: AppBar(),
+                                      body: Center(
+                                        child: InteractiveViewer(
+                                          maxScale: 4.0,
+                                          child: Image.network(
+                                              optionalFilesUrls[index]),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 );
                               },
-                            )
-                          : const Text(
-                              'No optional files available.',
-                              style: TextStyle(color: Colors.grey),
-                            ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    optionalFilesUrls[index],
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      else if (!isClientUser)
+                        const Text(
+                          'No files available',
+                          style: TextStyle(color: Colors.grey),
+                        ),
                     ],
                   ),
                 ),
@@ -383,6 +480,30 @@ class ProfileDetail extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class Post {
+  final String title;
+  final String description;
+  final String location;
+  final String? imagePath;
+
+  Post({
+    required this.title,
+    required this.description,
+    required this.location,
+    this.imagePath,
+  });
+
+  factory Post.fromDocument(DocumentSnapshot doc) {
+    var data = doc.data() as Map<String, dynamic>;
+    return Post(
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
+      location: data['location'] ?? '',
+      imagePath: data['imagePath'],
     );
   }
 }

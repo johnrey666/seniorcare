@@ -8,7 +8,7 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 
 class CreatePostPage extends StatefulWidget {
-  const CreatePostPage({Key? key}) : super(key: key);
+  const CreatePostPage({super.key});
 
   @override
   _CreatePostPageState createState() => _CreatePostPageState();

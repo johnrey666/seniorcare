@@ -18,18 +18,20 @@ class CaregiverFormPage extends StatefulWidget {
 class _CaregiverFormPageState extends State<CaregiverFormPage> {
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
   final TextEditingController _contactNumberController =
       TextEditingController();
+
   final TextEditingController _expertiseController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
   DateTime _dob = DateTime.now();
   bool _isMale = true;
   bool _isLoading = false;
   XFile? _profileImage;
   XFile? _idImage;
   XFile? _selfieImage;
-  List<XFile> _optionalFiles = [];
+  final List<XFile> _optionalFiles = [];
   int _currentStep = 1;
+  GeoPoint? _location;
 
   Future<void> _pickImage(ImageSource source, String type) async {
     final ImagePicker picker = ImagePicker();
@@ -47,11 +49,9 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
 
   Future<void> _pickMultipleFiles() async {
     final ImagePicker picker = ImagePicker();
-    final List<XFile>? images = await picker.pickMultiImage();
+    final List<XFile> images = await picker.pickMultiImage();
     setState(() {
-      if (images != null) {
-        _optionalFiles.addAll(images);
-      }
+      _optionalFiles.addAll(images);
     });
   }
 
@@ -86,7 +86,7 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
   Future<void> _submitForm() async {
     if (_firstNameController.text.isEmpty ||
         _lastNameController.text.isEmpty ||
-        _locationController.text.isEmpty ||
+        _location == null ||
         _contactNumberController.text.isEmpty ||
         _expertiseController.text.isEmpty ||
         _profileImage == null ||
@@ -125,7 +125,7 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'firstName': _firstNameController.text,
         'lastName': _lastNameController.text,
-        'location': _locationController.text,
+        'location': _location,
         'contactNumber': _contactNumberController.text,
         'expertise': _expertiseController.text,
         'dob': _dob,
@@ -157,7 +157,7 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
   void _nextStep() {
     if (_firstNameController.text.isEmpty ||
         _lastNameController.text.isEmpty ||
-        _locationController.text.isEmpty ||
+        _location == null ||
         _contactNumberController.text.isEmpty ||
         _expertiseController.text.isEmpty ||
         _profileImage == null) {
@@ -265,12 +265,12 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
               borderRadius: BorderRadius.circular(18),
             ),
           ),
-          items: <DropdownMenuItem<bool>>[
-            const DropdownMenuItem<bool>(
+          items: const <DropdownMenuItem<bool>>[
+            DropdownMenuItem<bool>(
               value: true,
               child: Text('Male'),
             ),
-            const DropdownMenuItem<bool>(
+            DropdownMenuItem<bool>(
               value: false,
               child: Text('Female'),
             ),
@@ -310,10 +310,21 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
         TextField(
           controller: _locationController,
           decoration: InputDecoration(
-            labelText: 'Location',
+            labelText: 'Location (Latitude, Longitude)',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
           ),
           style: const TextStyle(fontSize: 14),
+          onChanged: (value) {
+            // Parse and set the location GeoPoint
+            List<String> latLng =
+                value.split(',').map((e) => e.trim()).toList();
+            if (latLng.length == 2) {
+              setState(() {
+                _location =
+                    GeoPoint(double.parse(latLng[0]), double.parse(latLng[1]));
+              });
+            }
+          },
         ),
         const SizedBox(height: 20),
         TextField(

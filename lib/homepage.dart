@@ -7,17 +7,17 @@ class HomePage extends StatefulWidget {
   final void Function() toggleTheme;
 
   const HomePage({
-    Key? key,
+    super.key,
     required this.toggleTheme,
     required String userType,
-  }) : super(key: key);
+  });
 
   @override
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
   @override
@@ -376,7 +376,7 @@ class _HomePageState extends State<HomePage> {
                                   )
                                 : const DecorationImage(
                                     image: AssetImage(
-                                        'assets/default_profile_image.jpg'),
+                                        'assets/images/default.png'),
                                     fit: BoxFit.cover,
                                   ),
                           ),

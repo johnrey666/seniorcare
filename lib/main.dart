@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:seniorcare/admin.dart';
 import 'package:seniorcare/forgotpassword.dart';
 import 'package:seniorcare/main_page.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -44,6 +45,9 @@ class _MyAppState extends State<MyApp> {
         fontFamily: GoogleFonts.roboto().fontFamily,
         primarySwatch: Colors.blue,
         brightness: Brightness.light,
+        primaryColor:
+            Colors.blue, 
+        hintColor: Colors.blue,
       ),
       darkTheme: ThemeData(
         primarySwatch: Colors.blue,
@@ -95,13 +99,22 @@ class _LoginPageState extends State<LoginPage> {
 
       String userType = userDoc['userType'];
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              MainPage(toggleTheme: widget.toggleTheme, userType: userType),
-        ),
-      );
+      if (userType == 'Admin') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AdminPage(toggleTheme: widget.toggleTheme),
+          ),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                MainPage(toggleTheme: widget.toggleTheme, userType: userType),
+          ),
+        );
+      }
     } on FirebaseAuthException catch (e) {
       _showErrorDialog(e.message!);
     } finally {

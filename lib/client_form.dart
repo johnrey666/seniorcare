@@ -246,7 +246,7 @@ class _ClientFormPageState extends State<ClientFormPage> {
               borderRadius: BorderRadius.circular(18),
             ),
           ),
-          items: <DropdownMenuItem<bool>>[
+          items: const <DropdownMenuItem<bool>>[
             DropdownMenuItem<bool>(
               value: true,
               child: Text('Male'),
@@ -347,7 +347,7 @@ class _ClientFormPageState extends State<ClientFormPage> {
     return Column(
       children: <Widget>[
         const SizedBox(height: 20),
-        Text(
+        const Text(
           'Upload ID',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
@@ -378,7 +378,7 @@ class _ClientFormPageState extends State<ClientFormPage> {
           ),
         ),
         const SizedBox(height: 20),
-        Text(
+        const Text(
           'Selfie Verification',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),

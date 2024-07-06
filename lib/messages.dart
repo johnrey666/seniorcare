@@ -6,10 +6,10 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:seniorcare/userprofile.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class MessagesPage extends StatelessWidget {
-  const MessagesPage({Key? key});
-
+  const MessagesPage({Key? superKey, Key? key}) : super(key: superKey);
   @override
   Widget build(BuildContext context) {
     User? currentUser = FirebaseAuth.instance.currentUser;
@@ -55,8 +55,7 @@ class MessagesPage extends StatelessWidget {
                   .get(),
               builder: (context, userSnapshot) {
                 if (!userSnapshot.hasData) {
-                  return const SizedBox
-                      .shrink(); // Return an empty widget while waiting for data
+                  return const SizedBox.shrink();
                 }
                 String otherUserName =
                     '${userSnapshot.data!['firstName']} ${userSnapshot.data!['lastName']}';
@@ -75,7 +74,7 @@ class MessagesPage extends StatelessWidget {
                           conversationId: doc.id,
                           userName: otherUserName,
                           avatarUrl: avatarUrl,
-                          userId: otherUserId, // Pass the userId here
+                          userId: otherUserId,
                         ),
                       ),
                     );
@@ -97,7 +96,6 @@ class MessagesPage extends StatelessWidget {
   }
 }
 
-// Conversation item widget
 class ConversationItem extends StatelessWidget {
   final String userName;
   final String lastMessage;
@@ -105,7 +103,8 @@ class ConversationItem extends StatelessWidget {
   final VoidCallback onTap;
 
   const ConversationItem({
-    Key? key,
+    super.key,
+    Key? superKey,
     required this.userName,
     required this.lastMessage,
     required this.avatarUrl,
@@ -133,7 +132,7 @@ class ConversationPage extends StatefulWidget {
   final String avatarUrl;
   final String userId;
 
-  ConversationPage({
+  const ConversationPage({
     Key? key,
     required this.conversationId,
     required this.userName,
@@ -147,8 +146,123 @@ class ConversationPage extends StatefulWidget {
 
 class _ConversationPageState extends State<ConversationPage> {
   final TextEditingController _messageController = TextEditingController();
-  String? _imageUrl; // Track selected image URL
-  bool _showAvatar = true; // Flag to show avatar on first message
+  String? _imageUrl;
+  bool _showAvatar = true;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  void _startCall() {
+    _audioPlayer.play(AssetSource('sounds/ring.mp3')); // Play local ring sound
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  backgroundImage: NetworkImage(widget.avatarUrl),
+                  radius: 40,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Dialing...',
+                  style: TextStyle(fontSize: 20),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.userName,
+                  style: const TextStyle(fontSize: 18),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    _audioPlayer.stop();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancel Call'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ).then((_) {
+      _audioPlayer.stop();
+    });
+  }
+
+  void _showConversationActionsModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.delete),
+                title: const Text('Delete Conversation'),
+                onTap: () {
+                  _deleteConversation();
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.block),
+                title: const Text('Block Person'),
+                onTap: () {
+                  _blockPerson();
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.report),
+                title: const Text('Report'),
+                onTap: () {
+                  _report();
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _deleteConversation() {
+    FirebaseFirestore.instance
+        .collection('conversations')
+        .doc(widget.conversationId)
+        .delete()
+        .then((_) {
+      print('Conversation deleted successfully');
+    }).catchError((error) {
+      print('Failed to delete conversation: $error');
+    });
+  }
+
+  void _blockPerson() {
+    print('User blocked');
+  }
+
+  void _report() {
+    print('Conversation reported');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -175,6 +289,20 @@ class _ConversationPageState extends State<ConversationPage> {
             Text(widget.userName, style: const TextStyle(fontSize: 20)),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const FaIcon(FontAwesomeIcons.phone),
+            onPressed: () {
+              _startCall();
+            },
+          ),
+          IconButton(
+            icon: const FaIcon(FontAwesomeIcons.gear),
+            onPressed: () {
+              _showConversationActionsModal(context);
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -211,18 +339,17 @@ class _ConversationPageState extends State<ConversationPage> {
 
                       if (_showAvatar) {
                         showAvatar = true;
-                        _showAvatar = false; // Reset flag after showing avatar
+                        _showAvatar = false;
                       }
 
-                      // Check if imageUrl field exists in the document
-                      String? imageUrl = doc['imageUrl']; // Change here
+                      String? imageUrl = doc['imageUrl'];
 
                       return MessageItem(
                         text: doc['text'] ?? '',
                         avatarUrl: showAvatar ? senderAvatarUrl : '',
                         isCurrentUser: isCurrentUser,
                         imageUrl: imageUrl ?? '',
-                        sender: '', // Provide a default value if null
+                        sender: '',
                       );
                     },
                   );
@@ -237,7 +364,6 @@ class _ConversationPageState extends State<ConversationPage> {
               },
             ),
           ),
-          // Image preview above TextField
           if (_imageUrl != null) ...[
             Container(
               padding: const EdgeInsets.all(8),
@@ -245,7 +371,7 @@ class _ConversationPageState extends State<ConversationPage> {
               child: GestureDetector(
                 onTap: () {
                   setState(() {
-                    _imageUrl = null; // Clear image preview on tap
+                    _imageUrl = null;
                   });
                 },
                 child: Image.network(
@@ -300,7 +426,7 @@ class _ConversationPageState extends State<ConversationPage> {
       File imageFile = File(pickedFile.path);
       String imageUrl = await _uploadImage(imageFile);
       setState(() {
-        _imageUrl = imageUrl; // Update image preview
+        _imageUrl = imageUrl;
       });
     }
   }
@@ -337,7 +463,7 @@ class _ConversationPageState extends State<ConversationPage> {
       'sender': currentUser.uid,
       'avatarUrl': currentUser.photoURL ?? '',
       'timestamp': FieldValue.serverTimestamp(),
-      'imageUrl': _imageUrl, // Save imageUrl along with the message
+      'imageUrl': _imageUrl,
     });
 
     await FirebaseFirestore.instance
@@ -351,8 +477,8 @@ class _ConversationPageState extends State<ConversationPage> {
 
     _messageController.clear();
     setState(() {
-      _imageUrl = null; // Clear image preview after sending message
-      _showAvatar = true; // Show avatar on next message sent
+      _imageUrl = null;
+      _showAvatar = true;
     });
   }
 }

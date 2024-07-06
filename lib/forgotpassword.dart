@@ -82,43 +82,33 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           children: <Widget>[
             TextField(
               controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
                 labelText: 'Email',
-                labelStyle: const TextStyle(color: Colors.black87),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Colors.blueAccent),
+                prefixIcon: const Icon(Icons.email),
+                border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10.0),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(10.0),
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
               ),
             ),
             const SizedBox(height: 20),
-            if (_isLoading)
-              const CircularProgressIndicator()
-            else
-              ElevatedButton(
-                onPressed: _resetPassword,
-                style: ButtonStyle(
-                  backgroundColor:
-                      MaterialStateProperty.all<Color>(Colors.blueAccent),
-                  foregroundColor:
-                      MaterialStateProperty.all<Color>(Colors.white),
-                  padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
-                    const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-                  ),
-                  shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+            _isLoading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _resetPassword,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 50, vertical: 15),
+                    ),
+                    child: const Text(
+                      'Reset Password',
+                      style: TextStyle(fontSize: 16, color: Colors.white),
                     ),
                   ),
-                ),
-                child: const Text('Reset Password'),
-              ),
           ],
         ),
       ),
