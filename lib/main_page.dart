@@ -1,19 +1,15 @@
-// ignore_for_file: library_private_types_in_public_api, use_build_context_synchronously
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:seniorcare/homepage.dart';
-import 'package:seniorcare/main.dart';
-import 'package:seniorcare/savedpost.dart';
-import 'package:seniorcare/userprofile.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'messages.dart';
-import 'notifications.dart';
-// ignore: unused_import
-import 'profile.dart';
-import 'createpost.dart';
+import 'userprofile.dart';
 import 'caregivershomepage.dart';
+import 'homepage.dart';
+import 'createpost.dart';
+import 'notifications.dart';
+import 'savedpost.dart';
+import 'main.dart';
 
 class MainPage extends StatefulWidget {
   final String userType;
@@ -193,7 +189,7 @@ class _MainPageState extends State<MainPage> {
   }
 
   void _showPasswordChangeDialog() {
-    bool _showPassword = false; // State variable to toggle password visibility
+    bool _showPassword = false;
 
     showDialog(
       context: context,
@@ -219,8 +215,7 @@ class _MainPageState extends State<MainPage> {
                 children: [
                   TextField(
                     controller: _passwordController,
-                    obscureText:
-                        !_showPassword, // Toggle visibility based on _showPassword
+                    obscureText: !_showPassword,
                     decoration: InputDecoration(
                       labelText: 'Old Password',
                       border: OutlineInputBorder(
@@ -235,8 +230,7 @@ class _MainPageState extends State<MainPage> {
                         ),
                         onPressed: () {
                           setState(() {
-                            _showPassword =
-                                !_showPassword; // Toggle password visibility
+                            _showPassword = !_showPassword;
                           });
                         },
                       ),
@@ -245,8 +239,7 @@ class _MainPageState extends State<MainPage> {
                   const SizedBox(height: 20),
                   TextField(
                     controller: _newPasswordController,
-                    obscureText:
-                        !_showPassword, // Toggle visibility based on _showPassword
+                    obscureText: !_showPassword,
                     decoration: InputDecoration(
                       labelText: 'New Password',
                       border: OutlineInputBorder(
@@ -261,8 +254,7 @@ class _MainPageState extends State<MainPage> {
                         ),
                         onPressed: () {
                           setState(() {
-                            _showPassword =
-                                !_showPassword; // Toggle password visibility
+                            _showPassword = !_showPassword;
                           });
                         },
                       ),
@@ -271,8 +263,7 @@ class _MainPageState extends State<MainPage> {
                   const SizedBox(height: 20),
                   TextField(
                     controller: _confirmPasswordController,
-                    obscureText:
-                        !_showPassword, // Toggle visibility based on _showPassword
+                    obscureText: !_showPassword,
                     decoration: InputDecoration(
                       labelText: 'Confirm New Password',
                       border: OutlineInputBorder(
@@ -287,8 +278,7 @@ class _MainPageState extends State<MainPage> {
                         ),
                         onPressed: () {
                           setState(() {
-                            _showPassword =
-                                !_showPassword; // Toggle password visibility
+                            _showPassword = !_showPassword;
                           });
                         },
                       ),
@@ -422,7 +412,7 @@ class _MainPageState extends State<MainPage> {
       const NotificationsPage(),
       UserProfilePage(
         userId: FirebaseAuth.instance.currentUser!.uid,
-        isCurrentUser: true, // Ensure this flag is set
+        isCurrentUser: true,
       ),
     ];
 
@@ -481,13 +471,12 @@ class _MainPageState extends State<MainPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (widget.userType ==
-                        'Caregiver') // Conditionally show for caregivers
+                    if (widget.userType == 'Caregiver')
                       ListTile(
                         leading: const FaIcon(FontAwesomeIcons.solidBookmark),
                         title: const Text('Saved Posts'),
                         onTap: () {
-                          Navigator.pop(context); // Close the drawer
+                          Navigator.pop(context);
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -523,7 +512,12 @@ class _MainPageState extends State<MainPage> {
           ],
         ),
       ),
-      body: pages[_selectedIndex],
+      body: Stack(
+        children: [
+          pages[_selectedIndex],
+          CallListener(),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -549,5 +543,80 @@ class _MainPageState extends State<MainPage> {
         onTap: _onItemTapped,
       ),
     );
+  }
+}
+
+class CallListener extends StatefulWidget {
+  @override
+  _CallListenerState createState() => _CallListenerState();
+}
+
+class _CallListenerState extends State<CallListener> {
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _callStream;
+
+  @override
+  void initState() {
+    super.initState();
+    User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      _callStream = FirebaseFirestore.instance
+          .collection('calls')
+          .doc(currentUser.uid)
+          .snapshots();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _callStream != null
+        ? StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: _callStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data!.exists) {
+                var callData = snapshot.data!.data();
+                if (callData != null && callData['status'] == 'calling') {
+                  return _buildIncomingCallDialog(
+                      callData['callerName'], callData['callerId']);
+                }
+              }
+              return SizedBox.shrink();
+            },
+          )
+        : SizedBox.shrink();
+  }
+
+  Widget _buildIncomingCallDialog(String callerName, String callerId) {
+    return AlertDialog(
+      title: Text('Incoming Call'),
+      content: Text('$callerName is calling you.'),
+      actions: [
+        TextButton(
+          onPressed: () {
+            _respondToCall('accepted', callerId);
+          },
+          child: Text('Accept'),
+        ),
+        TextButton(
+          onPressed: () {
+            _respondToCall('declined', callerId);
+          },
+          child: Text('Decline'),
+        ),
+      ],
+    );
+  }
+
+  void _respondToCall(String status, String callerId) {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      FirebaseFirestore.instance
+          .collection('calls')
+          .doc(callerId)
+          .update({'status': status});
+      FirebaseFirestore.instance
+          .collection('calls')
+          .doc(currentUser.uid)
+          .delete();
+    }
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
+import 'edit_profile_page.dart'; // Import the EditProfilePage
 
 extension StringExtension on String {
   String capitalize() {
@@ -143,12 +144,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         right: 16,
                         child: ElevatedButton.icon(
                           onPressed: () {
-                            // Handle edit profile action
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Edit profile action'),
+                            // Navigate to EditProfilePage
+                            Navigator.of(context)
+                                .push(
+                              MaterialPageRoute(
+                                builder: (context) => EditProfilePage(
+                                  userId: widget.userId,
+                                ),
                               ),
-                            );
+                            )
+                                .then((_) {
+                              // Refresh the user data after returning from edit
+                              setState(() {
+                                userFuture = FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(widget.userId)
+                                    .get();
+                                _fetchUserData();
+                              });
+                            });
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor:

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +12,7 @@ import 'package:audioplayers/audioplayers.dart';
 
 class MessagesPage extends StatelessWidget {
   const MessagesPage({Key? superKey, Key? key}) : super(key: superKey);
+
   @override
   Widget build(BuildContext context) {
     User? currentUser = FirebaseAuth.instance.currentUser;
@@ -32,65 +35,77 @@ class MessagesPage extends StatelessWidget {
           ),
         ),
       ),
-      body: StreamBuilder(
-        stream: FirebaseFirestore.instance
-            .collection('conversations')
-            .where('users', arrayContains: currentUser?.uid)
-            .snapshots(),
-        builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+      body: Stack(
+        children: [
+          StreamBuilder(
+            stream: FirebaseFirestore.instance
+                .collection('conversations')
+                .where('users', arrayContains: currentUser?.uid)
+                .snapshots(),
+            builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
 
-          final conversations = snapshot.data!.docs.map((doc) {
-            String otherUserId = (doc['users'] as List<dynamic>)
-                .firstWhere((id) => id != currentUser!.uid);
+              final conversations = snapshot.data!.docs.map((doc) {
+                String otherUserId = (doc['users'] as List<dynamic>)
+                    .firstWhere((id) => id != currentUser!.uid);
 
-            return FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(otherUserId)
-                  .get(),
-              builder: (context, userSnapshot) {
-                if (!userSnapshot.hasData) {
-                  return const SizedBox.shrink();
-                }
-                String otherUserName =
-                    '${userSnapshot.data!['firstName']} ${userSnapshot.data!['lastName']}';
-                String avatarUrl = userSnapshot.data!['profileImageUrl'] ?? '';
-                String lastMessage = doc['lastMessage'];
+                return FutureBuilder<DocumentSnapshot>(
+                  future: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(otherUserId)
+                      .get(),
+                  builder: (context, userSnapshot) {
+                    if (!userSnapshot.hasData) {
+                      return const SizedBox.shrink();
+                    }
 
-                return ConversationItem(
-                  userName: otherUserName,
-                  lastMessage: lastMessage,
-                  avatarUrl: avatarUrl,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ConversationPage(
-                          conversationId: doc.id,
-                          userName: otherUserName,
-                          avatarUrl: avatarUrl,
-                          userId: otherUserId,
-                        ),
-                      ),
+                    if (!userSnapshot.data!.exists) {
+                      // Handle the case where the user document does not exist
+                      return const SizedBox.shrink();
+                    }
+
+                    String otherUserName =
+                        '${userSnapshot.data!['firstName']} ${userSnapshot.data!['lastName']}';
+                    String avatarUrl =
+                        userSnapshot.data!['profileImageUrl'] ?? '';
+                    String lastMessage = doc['lastMessage'];
+
+                    return ConversationItem(
+                      userName: otherUserName,
+                      lastMessage: lastMessage,
+                      avatarUrl: avatarUrl,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ConversationPage(
+                              conversationId: doc.id,
+                              userName: otherUserName,
+                              avatarUrl: avatarUrl,
+                              userId: otherUserId,
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 );
-              },
-            );
-          }).toList();
+              }).toList();
 
-          return ListView.builder(
-            itemCount: conversations.length,
-            itemBuilder: (context, index) {
-              return conversations[index];
+              return ListView.builder(
+                itemCount: conversations.length,
+                itemBuilder: (context, index) {
+                  return conversations[index];
+                },
+              );
             },
-          );
-        },
+          ),
+          if (currentUser != null) CallListener(userId: currentUser.uid),
+        ],
       ),
     );
   }
@@ -149,14 +164,35 @@ class _ConversationPageState extends State<ConversationPage> {
   String? _imageUrl;
   bool _showAvatar = true;
   final AudioPlayer _audioPlayer = AudioPlayer();
+  Timer? _ringTimer;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _callSubscription;
 
   @override
   void dispose() {
     _audioPlayer.dispose();
+    _ringTimer?.cancel();
+    _callSubscription?.cancel();
     super.dispose();
   }
 
-  void _startCall() {
+  void _startCall() async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) return;
+
+    // Create a call document in Firestore
+    DocumentReference<Map<String, dynamic>> callDoc =
+        FirebaseFirestore.instance.collection('calls').doc();
+
+    await callDoc.set({
+      'callerId': currentUser.uid,
+      'callerName': currentUser.displayName ?? '',
+      'calleeId': widget.userId,
+      'calleeName': widget.userName,
+      'timestamp': FieldValue.serverTimestamp(),
+      'status': 'ringing',
+    });
+
     _audioPlayer.play(AssetSource('sounds/ring.mp3')); // Play local ring sound
 
     showDialog(
@@ -189,6 +225,7 @@ class _ConversationPageState extends State<ConversationPage> {
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () {
+                    callDoc.update({'status': 'cancelled'});
                     _audioPlayer.stop();
                     Navigator.pop(context);
                   },
@@ -200,7 +237,81 @@ class _ConversationPageState extends State<ConversationPage> {
         );
       },
     ).then((_) {
+      callDoc.update({'status': 'cancelled'});
       _audioPlayer.stop();
+    });
+
+    _callSubscription = callDoc.snapshots().listen((snapshot) {
+      if (snapshot.exists) {
+        var callStatus = snapshot.data()?['status'];
+        if (callStatus == 'accepted') {
+          _audioPlayer.stop();
+          Navigator.pop(context); // Close the dialing dialog
+          _startCallConversation(callDoc.id);
+        } else if (callStatus == 'missed') {
+          _sendMissedCallMessage();
+        }
+      }
+    });
+
+    // Automatically set the call status to "missed" after 20 seconds
+    _ringTimer = Timer(const Duration(seconds: 20), () {
+      callDoc.update({'status': 'missed'});
+      _audioPlayer.stop();
+      Navigator.pop(context);
+      _showNoAnswerDialog(callDoc);
+    });
+  }
+
+  void _sendMissedCallMessage() async {
+    await FirebaseFirestore.instance
+        .collection('conversations')
+        .doc(widget.conversationId)
+        .collection('messages')
+        .add({
+      'text': 'You missed a call.',
+      'sender': 'system',
+      'timestamp': FieldValue.serverTimestamp(),
+      'imageUrl': null,
+    });
+
+    await FirebaseFirestore.instance
+        .collection('conversations')
+        .doc(widget.conversationId)
+        .update({
+      'lastMessage': 'You missed a call.',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'lastMessageSender': 'system',
+    });
+  }
+
+  void _showNoAnswerDialog(DocumentReference<Map<String, dynamic>> callDoc) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('No Answer'),
+          content: const Text('The call was not answered.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Close'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _startCall();
+              },
+              child: const Text('Call Again'),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      callDoc.update({'status': 'missed'});
+      _sendMissedCallMessage();
     });
   }
 
@@ -291,6 +402,10 @@ class _ConversationPageState extends State<ConversationPage> {
         ),
         actions: [
           IconButton(
+            icon: const FaIcon(FontAwesomeIcons.video),
+            onPressed: () {},
+          ),
+          IconButton(
             icon: const FaIcon(FontAwesomeIcons.phone),
             onPressed: () {
               _startCall();
@@ -328,9 +443,10 @@ class _ConversationPageState extends State<ConversationPage> {
                         .doc(doc['sender'])
                         .get(),
                     builder: (context, userSnapshot) {
-                      if (!userSnapshot.hasData) {
+                      if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
                         return const SizedBox.shrink();
                       }
+
                       String senderAvatarUrl =
                           userSnapshot.data!['profileImageUrl'] ?? '';
                       bool isCurrentUser = doc['sender'] ==
@@ -481,6 +597,20 @@ class _ConversationPageState extends State<ConversationPage> {
       _showAvatar = true;
     });
   }
+
+  void _startCallConversation(String callDocId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CallConversationPage(
+          callDocId: callDocId,
+          conversationId: widget.conversationId,
+          userName: widget.userName,
+          avatarUrl: widget.avatarUrl,
+        ),
+      ),
+    );
+  }
 }
 
 class MessageItem extends StatelessWidget {
@@ -533,6 +663,190 @@ class MessageItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// Add this to listen for incoming calls
+class CallListener extends StatefulWidget {
+  final String userId;
+  const CallListener({Key? key, required this.userId}) : super(key: key);
+
+  @override
+  _CallListenerState createState() => _CallListenerState();
+}
+
+class _CallListenerState extends State<CallListener> {
+  @override
+  void initState() {
+    super.initState();
+    FirebaseFirestore.instance
+        .collection('calls')
+        .where('calleeId', isEqualTo: widget.userId)
+        .where('status', isEqualTo: 'ringing')
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        final callDoc = snapshot.docs.first;
+        _showIncomingCallDialog(callDoc);
+      }
+    });
+  }
+
+  void _showIncomingCallDialog(DocumentSnapshot callDoc) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('${callDoc['callerName']} is calling you'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                callDoc.reference.update({'status': 'declined'});
+                _sendMissedCallMessage(callDoc);
+                Navigator.pop(context);
+              },
+              child: const Text('Decline'),
+            ),
+            TextButton(
+              onPressed: () {
+                callDoc.reference.update({'status': 'accepted'});
+                Navigator.pop(context);
+                _startCallConversation(callDoc.id, callDoc['callerId']);
+              },
+              child: const Text('Answer'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _sendMissedCallMessage(DocumentSnapshot callDoc) async {
+    String conversationId =
+        await _getConversationId(callDoc['callerId'], callDoc['calleeId']);
+
+    await FirebaseFirestore.instance
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .add({
+      'text': 'You missed a call from ${callDoc['callerName']}.',
+      'sender': 'system',
+      'timestamp': FieldValue.serverTimestamp(),
+      'imageUrl': null,
+    });
+
+    await FirebaseFirestore.instance
+        .collection('conversations')
+        .doc(conversationId)
+        .update({
+      'lastMessage': 'You missed a call from ${callDoc['callerName']}.',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'lastMessageSender': 'system',
+    });
+  }
+
+  Future<String> _getConversationId(String userId1, String userId2) async {
+    QuerySnapshot query = await FirebaseFirestore.instance
+        .collection('conversations')
+        .where('users', arrayContains: [userId1, userId2]).get();
+
+    if (query.docs.isNotEmpty) {
+      return query.docs.first.id;
+    } else {
+      DocumentReference newConversation =
+          await FirebaseFirestore.instance.collection('conversations').add({
+        'users': [userId1, userId2],
+        'lastMessage': '',
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'lastMessageSender': '',
+      });
+
+      return newConversation.id;
+    }
+  }
+
+  void _startCallConversation(String callDocId, String callerId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CallConversationPage(
+          callDocId: callDocId,
+          conversationId: '',
+          userName: '',
+          avatarUrl: '',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(); // This widget doesn't need to display anything
+  }
+}
+
+class CallConversationPage extends StatefulWidget {
+  final String callDocId;
+  final String conversationId;
+  final String userName;
+  final String avatarUrl;
+
+  const CallConversationPage({
+    Key? key,
+    required this.callDocId,
+    required this.conversationId,
+    required this.userName,
+    required this.avatarUrl,
+  }) : super(key: key);
+
+  @override
+  _CallConversationPageState createState() => _CallConversationPageState();
+}
+
+class _CallConversationPageState extends State<CallConversationPage> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  void _endCall() {
+    FirebaseFirestore.instance
+        .collection('calls')
+        .doc(widget.callDocId)
+        .update({'status': 'ended'});
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Call with ${widget.userName}'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              backgroundImage: NetworkImage(widget.avatarUrl),
+              radius: 50,
+            ),
+            const SizedBox(height: 20),
+            const Text('In Call...', style: TextStyle(fontSize: 24)),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _endCall,
+              child: const Text('End Call'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

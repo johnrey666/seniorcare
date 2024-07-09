@@ -10,8 +10,6 @@ import 'package:seniorcare/main_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'client_form.dart';
 import 'caregiver_form.dart';
-// ignore: unused_import
-import 'profile.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +18,7 @@ void main() async {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key});
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   _MyAppState createState() => _MyAppState();
@@ -45,8 +43,7 @@ class _MyAppState extends State<MyApp> {
         fontFamily: GoogleFonts.roboto().fontFamily,
         primarySwatch: Colors.blue,
         brightness: Brightness.light,
-        primaryColor:
-            Colors.blue, 
+        primaryColor: Colors.blue,
         hintColor: Colors.blue,
       ),
       darkTheme: ThemeData(
@@ -54,15 +51,53 @@ class _MyAppState extends State<MyApp> {
         brightness: Brightness.dark,
       ),
       themeMode: _themeMode,
-      home: LoginPage(toggleTheme: _toggleTheme),
+      home: AuthGate(toggleTheme: _toggleTheme),
     );
   }
 }
 
+class AuthGate extends StatelessWidget {
+  final void Function() toggleTheme;
+
+  const AuthGate({Key? key, required this.toggleTheme}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        } else if (snapshot.hasData) {
+          return FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance.collection('users').doc(snapshot.data!.uid).get(),
+            builder: (context, userSnapshot) {
+              if (userSnapshot.connectionState == ConnectionState.waiting) {
+                return const CircularProgressIndicator();
+              } else if (userSnapshot.hasData) {
+                String userType = userSnapshot.data!['userType'];
+                return MainPage(
+                  toggleTheme: toggleTheme,
+                  userType: userType,
+                );
+              } else {
+                return LoginPage(toggleTheme: toggleTheme);
+              }
+            },
+          );
+        } else {
+          return LoginPage(toggleTheme: toggleTheme);
+        }
+      },
+    );
+  }
+}
+
+
 class LoginPage extends StatefulWidget {
   final void Function() toggleTheme;
 
-  const LoginPage({Key? key, required this.toggleTheme});
+  const LoginPage({Key? key, required this.toggleTheme}) : super(key: key);
 
   @override
   _LoginPageState createState() => _LoginPageState();
@@ -88,32 +123,48 @@ class _LoginPageState extends State<LoginPage> {
     try {
       UserCredential userCredential =
           await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
 
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
+      User? user = userCredential.user;
+      if (user != null) {
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
 
-      String userType = userDoc['userType'];
+        if (userDoc.exists) {
+          Map<String, dynamic> userData =
+              userDoc.data() as Map<String, dynamic>;
 
-      if (userType == 'Admin') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AdminPage(toggleTheme: widget.toggleTheme),
-          ),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                MainPage(toggleTheme: widget.toggleTheme, userType: userType),
-          ),
-        );
+          bool isDisabled = userData['isDisabled'] ?? false;
+
+          if (isDisabled) {
+            await FirebaseAuth.instance.signOut();
+            _showDisabledDialog();
+          } else {
+            String userType = userData['userType'];
+
+            if (userType == 'Admin') {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      AdminPage(toggleTheme: widget.toggleTheme),
+                ),
+              );
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MainPage(
+                      toggleTheme: widget.toggleTheme, userType: userType),
+                ),
+              );
+            }
+          }
+        }
       }
     } on FirebaseAuthException catch (e) {
       _showErrorDialog(e.message!);
@@ -122,6 +173,22 @@ class _LoginPageState extends State<LoginPage> {
         _isLoading = false;
       });
     }
+  }
+
+  void _showDisabledDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Account Disabled'),
+        content: const Text('Your account has been disabled.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showErrorDialog(String message) {
@@ -165,7 +232,7 @@ class _LoginPageState extends State<LoginPage> {
                 controller: _emailController,
                 decoration: InputDecoration(
                   labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
+                  prefixIcon: const Icon(Icons.email),
                   focusedBorder: OutlineInputBorder(
                     borderSide: const BorderSide(color: Colors.blueAccent),
                     borderRadius: BorderRadius.circular(25),
@@ -184,7 +251,7 @@ class _LoginPageState extends State<LoginPage> {
                 obscureText: !_passwordVisible,
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock),
+                  prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _passwordVisible
@@ -266,7 +333,7 @@ class _LoginPageState extends State<LoginPage> {
 class SignUpPage extends StatefulWidget {
   final void Function() toggleTheme;
 
-  const SignUpPage({Key? key, required this.toggleTheme});
+  const SignUpPage({Key? key, required this.toggleTheme}) : super(key: key);
 
   @override
   _SignUpPageState createState() => _SignUpPageState();
@@ -398,7 +465,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 controller: _emailController,
                 decoration: InputDecoration(
                   labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
+                  prefixIcon: const Icon(Icons.email),
                   focusedBorder: OutlineInputBorder(
                     borderSide: const BorderSide(color: Colors.blueAccent),
                     borderRadius: BorderRadius.circular(25),
@@ -417,7 +484,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 obscureText: !_passwordVisible,
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock),
+                  prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _passwordVisible
@@ -445,7 +512,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 obscureText: !_passwordVisible,
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',
-                  prefixIcon: Icon(Icons.lock),
+                  prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _passwordVisible
@@ -483,7 +550,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 },
                 decoration: InputDecoration(
                   labelText: 'Select User Type',
-                  prefixIcon: Icon(Icons.person),
+                  prefixIcon: const Icon(Icons.person),
                   focusedBorder: OutlineInputBorder(
                     borderSide: const BorderSide(color: Colors.blueAccent),
                     borderRadius: BorderRadius.circular(25),

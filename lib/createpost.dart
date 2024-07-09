@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps_webservice/places.dart';
+
+import 'package:geolocator/geolocator.dart';
 
 class CreatePostPage extends StatefulWidget {
   const CreatePostPage({super.key});
@@ -17,10 +21,11 @@ class CreatePostPage extends StatefulWidget {
 class _CreatePostPageState extends State<CreatePostPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
   File? _selectedImage;
   bool _isLoading = false;
   bool _isImagePickerActive = false;
+  LatLng? _selectedLocation;
+  String _locationAddress = '';
 
   Future<void> _pickImage() async {
     if (_isImagePickerActive) {
@@ -96,7 +101,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
       await FirebaseFirestore.instance.collection('posts').add({
         'title': _titleController.text,
         'description': _descriptionController.text,
-        'location': _locationController.text,
+        'location': _locationAddress,
+        'latitude': _selectedLocation?.latitude,
+        'longitude': _selectedLocation?.longitude,
         'imagePath': imageUrl ?? '',
         'userId': user.uid,
         'profileImageUrl': profileImageUrl,
@@ -108,9 +115,10 @@ class _CreatePostPageState extends State<CreatePostPage> {
       // Clear the form after submission
       _titleController.clear();
       _descriptionController.clear();
-      _locationController.clear();
       setState(() {
         _selectedImage = null;
+        _selectedLocation = null;
+        _locationAddress = '';
       });
 
       // Show success message
@@ -145,6 +153,58 @@ class _CreatePostPageState extends State<CreatePostPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Check if location services are enabled
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      _showErrorDialog('Location services are disabled.');
+      return;
+    }
+
+    // Check location permissions
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        _showErrorDialog('Location permissions are denied.');
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      _showErrorDialog(
+          'Location permissions are permanently denied, we cannot request permissions.');
+      return;
+    }
+
+    // Get current location
+    Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+
+    final LatLng initialLocation =
+        LatLng(position.latitude, position.longitude);
+
+    final pickedLocation = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LocationPicker(
+          initialLocation: initialLocation,
+        ),
+      ),
+    );
+
+    if (pickedLocation != null && pickedLocation is LatLng) {
+      setState(() {
+        _selectedLocation = pickedLocation;
+        _locationAddress =
+            '${pickedLocation.latitude}, ${pickedLocation.longitude}';
+      });
+    }
   }
 
   @override
@@ -190,14 +250,19 @@ class _CreatePostPageState extends State<CreatePostPage> {
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: _locationController,
+                controller: TextEditingController(text: _locationAddress),
+                readOnly: true,
                 style: TextStyle(color: textColor),
                 decoration: InputDecoration(
-                  hintText: 'Add location (optional)',
+                  hintText: 'Pick a location',
                   prefixIcon:
                       Icon(Icons.location_on_outlined, color: textColor),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.map, color: textColor),
+                    onPressed: _pickLocation,
                   ),
                 ),
               ),
@@ -244,6 +309,138 @@ class _CreatePostPageState extends State<CreatePostPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class LocationPicker extends StatefulWidget {
+  final LatLng initialLocation;
+
+  const LocationPicker({Key? key, required this.initialLocation})
+      : super(key: key);
+
+  @override
+  _LocationPickerState createState() => _LocationPickerState();
+}
+
+class _LocationPickerState extends State<LocationPicker> {
+  late LatLng _pickedLocation;
+  final TextEditingController _searchController = TextEditingController();
+  final GoogleMapsPlaces _places =
+      GoogleMapsPlaces(apiKey: 'AIzaSyD1M18m1ppPKZVM0n30h2e5vVzCwrABQqw');
+  List<Prediction> _predictions = [];
+  late GoogleMapController _mapController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pickedLocation = widget.initialLocation;
+  }
+
+  void _onTap(LatLng position) {
+    setState(() {
+      _pickedLocation = position;
+    });
+  }
+
+  Future<void> _searchPlaces(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _predictions = [];
+      });
+      return;
+    }
+
+    PlacesSearchResponse response = await _places.searchByText(query);
+
+    setState(() {
+      _predictions = response.results.cast<Prediction>();
+    });
+  }
+
+  void _onPredictionTap(Prediction prediction) async {
+    PlacesDetailsResponse details =
+        await _places.getDetailsByPlaceId(prediction.placeId!);
+    final lat = details.result.geometry!.location.lat;
+    final lng = details.result.geometry!.location.lng;
+
+    setState(() {
+      _pickedLocation = LatLng(lat, lng);
+      _predictions = [];
+      _searchController.clear();
+      _mapController.animateCamera(CameraUpdate.newLatLng(_pickedLocation));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Pick a Location'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60.0),
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search location',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+              ),
+              onChanged: _searchPlaces,
+            ),
+          ),
+        ),
+      ),
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _pickedLocation,
+              zoom: 15.0,
+            ),
+            onMapCreated: (controller) {
+              _mapController = controller;
+            },
+            onTap: _onTap,
+            markers: {
+              Marker(
+                markerId: const MarkerId('picked-location'),
+                position: _pickedLocation,
+              ),
+            },
+          ),
+          if (_predictions.isNotEmpty)
+            Positioned(
+              top: 100,
+              left: 15,
+              right: 15,
+              child: Material(
+                elevation: 5,
+                borderRadius: BorderRadius.circular(8.0),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _predictions.length,
+                  itemBuilder: (context, index) {
+                    return ListTile(
+                      title: Text(_predictions[index].description!),
+                      onTap: () => _onPredictionTap(_predictions[index]),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.pop(context, _pickedLocation);
+        },
+        child: const Icon(Icons.check),
       ),
     );
   }
