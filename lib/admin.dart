@@ -54,7 +54,7 @@ class AdminPage extends StatelessWidget {
           ],
         ),
       ),
-      body: DefaultTabController(
+      body: const DefaultTabController(
         length: 2, // Number of tabs
         child: Column(
           children: [
@@ -62,11 +62,11 @@ class AdminPage extends StatelessWidget {
               child: TabBarView(
                 children: [
                   ClientListPage(),
-                  const CaregiverListPage(),
+                  CaregiverListPage(),
                 ],
               ),
             ),
-            const TabBar(
+            TabBar(
               tabs: [
                 Tab(
                   icon: Icon(Icons.people),
