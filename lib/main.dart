@@ -8,8 +8,8 @@ import 'package:seniorcare/admin.dart';
 import 'package:seniorcare/forgotpassword.dart';
 import 'package:seniorcare/main_page.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'dart:math';
+import 'package:flutter_email_sender/flutter_email_sender.dart';
 
 import 'client_form.dart';
 import 'caregiver_form.dart';
@@ -407,7 +407,7 @@ class _SignUpPageState extends State<SignUpPage> {
       _showErrorDialog("Invalid verification code.");
       return;
     }
-    
+
     setState(() {
       _isLoading = true;
     });
@@ -665,8 +665,9 @@ class _SignUpPageState extends State<SignUpPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) =>
-                            LoginPage(toggleTheme: widget.toggleTheme)),
+                      builder: (context) =>
+                          LoginPage(toggleTheme: widget.toggleTheme),
+                    ),
                   );
                 },
                 child: const Text(

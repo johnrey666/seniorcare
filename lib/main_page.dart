@@ -36,10 +36,12 @@ class _MainPageState extends State<MainPage> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
   bool _isLoading = false;
+  late PageController _pageController;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     _fetchUserData();
   }
 
@@ -81,6 +83,7 @@ class _MainPageState extends State<MainPage> {
     setState(() {
       _selectedIndex = index;
     });
+    _pageController.jumpToPage(index);
   }
 
   void _openSettingsModal(BuildContext context) {
@@ -514,7 +517,15 @@ class _MainPageState extends State<MainPage> {
       ),
       body: Stack(
         children: [
-          pages[_selectedIndex],
+          PageView(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _selectedIndex = index;
+              });
+            },
+            children: pages,
+          ),
           CallListener(),
         ],
       ),

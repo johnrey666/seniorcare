@@ -5,6 +5,7 @@ import 'package:seniorcare/main.dart';
 import 'caregiver_list.dart';
 import 'client_list.dart';
 
+
 class AdminPage extends StatelessWidget {
   final void Function() toggleTheme;
 

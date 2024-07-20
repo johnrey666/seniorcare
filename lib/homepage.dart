@@ -18,18 +18,22 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -37,6 +41,17 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _searchQuery = _searchController.text.toLowerCase();
     });
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.atEdge &&
+        _scrollController.position.pixels == 0) {
+      _refreshData();
+    }
+  }
+
+  void _refreshData() {
+    setState(() {});
   }
 
   String calculateAge(Timestamp dob) {
@@ -62,7 +77,6 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    // Check if a hire request already exists
     QuerySnapshot existingRequest = await FirebaseFirestore.instance
         .collection('hireRequests')
         .where('senderId', isEqualTo: currentUser.uid)
@@ -102,7 +116,6 @@ class _HomePageState extends State<HomePage> {
       const SnackBar(content: Text('Hire request sent successfully.')),
     );
 
-    // Close the modal
     Navigator.of(context).pop();
   }
 
@@ -113,7 +126,6 @@ class _HomePageState extends State<HomePage> {
       return false;
     }
 
-    // Check if a hire request with "Accepted" status already exists
     QuerySnapshot acceptedRequest = await FirebaseFirestore.instance
         .collection('hireRequests')
         .where('senderId', isEqualTo: currentUser.uid)
@@ -338,6 +350,7 @@ class _HomePageState extends State<HomePage> {
             }
 
             return GridView.builder(
+              controller: _scrollController,
               itemCount: caregivers.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
