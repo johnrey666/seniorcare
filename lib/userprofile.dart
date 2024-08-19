@@ -1,17 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
-import 'edit_profile_page.dart'; // Import the EditProfilePage
-
-extension StringExtension on String {
-  String capitalize() {
-    if (isEmpty) {
-      return this;
-    }
-    return '${this[0].toUpperCase()}${substring(1)}';
-  }
-}
+import 'package:seniorcare/profile.dart';
+import 'edit_profile_page.dart';
+import 'all_review.dart';
 
 class UserProfilePage extends StatefulWidget {
   final String userId;
@@ -31,6 +25,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   late Future<DocumentSnapshot> userFuture;
   String fullName = 'User Profile';
   List<Post> userPosts = [];
+  double averageRating = 0.0;
 
   @override
   void initState() {
@@ -39,6 +34,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
     _fetchUserData();
     _fetchUserPosts();
+    _fetchAverageRating();
   }
 
   void _fetchUserData() async {
@@ -63,6 +59,172 @@ class _UserProfilePageState extends State<UserProfilePage> {
       userPosts =
           postsSnapshot.docs.map((doc) => Post.fromDocument(doc)).toList();
     });
+  }
+
+  void _fetchAverageRating() async {
+    final reviewsSnapshot = await FirebaseFirestore.instance
+        .collection('reviews')
+        .where('reviewedUserId', isEqualTo: widget.userId)
+        .get();
+
+    if (reviewsSnapshot.docs.isNotEmpty) {
+      double totalRating = 0.0;
+      for (var doc in reviewsSnapshot.docs) {
+        totalRating += doc['rating'];
+      }
+
+      setState(() {
+        averageRating = totalRating / reviewsSnapshot.docs.length;
+      });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _getApplicants(String postId) async {
+    QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+        .collection('hireRequests')
+        .where('postId', isEqualTo: postId)
+        .get();
+
+    List<Map<String, dynamic>> applicants = [];
+
+    for (var doc in querySnapshot.docs) {
+      var applicantData = doc.data() as Map<String, dynamic>;
+
+      // Fetch the applicant's details (e.g., name, avatar) from the users collection
+      var userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(applicantData['senderId'])
+          .get();
+
+      if (userDoc.exists) {
+        var userData = userDoc.data() as Map<String, dynamic>;
+        applicants.add({
+          'requestId': doc.id,
+          'senderId': applicantData['senderId'],
+          'name':
+              '${userData['firstName'] ?? 'Unknown'} ${userData['lastName'] ?? ''}',
+          'avatarUrl': userData['profileImageUrl'] ?? '',
+          'status': applicantData['status'],
+        });
+      }
+    }
+
+    return applicants;
+  }
+
+  void _showApplicantsDialog(BuildContext context, String postId) async {
+    List<Map<String, dynamic>> applicants = await _getApplicants(postId);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Applicants'),
+        content: applicants.isEmpty
+            ? const Text('No applicants yet.')
+            : SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: applicants.length,
+                  itemBuilder: (context, index) {
+                    var applicant = applicants[index];
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 8.0, horizontal: 4.0),
+                      leading: CircleAvatar(
+                        backgroundImage: applicant['avatarUrl'].isNotEmpty
+                            ? NetworkImage(applicant['avatarUrl'])
+                            : const AssetImage('assets/default_avatar.png')
+                                as ImageProvider,
+                      ),
+                      title: Text(applicant['name'],
+                          style: const TextStyle(fontSize: 16)),
+                      subtitle: Text('Status: ${applicant['status']}'),
+                      trailing: applicant['status'] == 'Pending'
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                  child: const Text('Hire'),
+                                  onPressed: () {
+                                    _hireApplicant(applicant['requestId'],
+                                        applicant['senderId']);
+                                  },
+                                ),
+                                TextButton(
+                                  child: const Text('Decline'),
+                                  onPressed: () {
+                                    _declineApplicant(applicant['requestId']);
+                                  },
+                                ),
+                              ],
+                            )
+                          : null,
+                    );
+                  },
+                ),
+              ),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('Close'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _hireApplicant(String requestId, String senderId) async {
+    // Update the status of the hire request to 'Accepted'
+    await FirebaseFirestore.instance
+        .collection('hireRequests')
+        .doc(requestId)
+        .update({
+      'status': 'Accepted',
+    });
+
+    // Create a conversation between the client and the caregiver
+    User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      // Create the conversation
+      await FirebaseFirestore.instance.collection('conversations').add({
+        'users': [currentUser.uid, senderId],
+        'userNames': [currentUser.displayName ?? 'Unknown', senderId],
+        'lastMessage': '',
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'lastMessageSender': '',
+      });
+
+      // Send a notification to the caregiver
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'recipientId': senderId,
+        'message':
+            'You have been hired by ${currentUser.displayName ?? 'Client'}',
+        'senderId': currentUser.uid,
+        'senderName': currentUser.displayName ?? 'Client',
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'Unread',
+        'type': 'HireNotification',
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Applicant hired! Conversation created.')),
+      );
+    }
+  }
+
+  Future<void> _declineApplicant(String requestId) async {
+    // Delete the hire request if declined
+    await FirebaseFirestore.instance
+        .collection('hireRequests')
+        .doc(requestId)
+        .delete();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Applicant declined.')),
+    );
   }
 
   @override
@@ -227,10 +389,29 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const StarRating(
-                        rating: 4,
+                      StarRating(
+                        rating: averageRating,
                         size: 30,
                         color: Colors.amber,
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  AllReviewPage(userId: widget.userId),
+                            ),
+                          );
+                        },
+                        child: const Text(
+                          'View all reviews',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.blue,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
                       if (isClientUser)
@@ -315,9 +496,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                           const SizedBox(height: 8),
                                           Text(
                                             post.description,
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                            ),
+                                            style:
+                                                const TextStyle(fontSize: 16),
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
@@ -327,6 +507,24 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                               color: Colors.grey,
                                             ),
                                           ),
+                                          const SizedBox(height: 12),
+                                          if (widget
+                                              .isCurrentUser) // Show only if it's the user's profile
+                                            ElevatedButton(
+                                              onPressed: () {
+                                                _showApplicantsDialog(
+                                                    context, post.postId);
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.blue,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                              ),
+                                              child:
+                                                  const Text('View Applicants'),
+                                            ),
                                         ],
                                       ),
                                     ),
@@ -410,7 +608,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 }
 
 class StarRating extends StatelessWidget {
-  final int rating;
+  final double rating;
   final double size;
   final Color color;
 
@@ -418,7 +616,7 @@ class StarRating extends StatelessWidget {
     Key? key,
     required this.rating,
     this.size = 24,
-    this.color = Colors.amber,
+    this.color = const Color.fromARGB(255, 0, 0, 0),
   }) : super(key: key);
 
   @override
@@ -426,11 +624,25 @@ class StarRating extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (index) {
-        return Icon(
-          index < rating ? Icons.star : Icons.star_border,
-          color: color,
-          size: size,
-        );
+        if (index < rating.floor()) {
+          return Icon(
+            Icons.star,
+            color: color,
+            size: size,
+          );
+        } else if (index < rating) {
+          return Icon(
+            Icons.star_half,
+            color: color,
+            size: size,
+          );
+        } else {
+          return Icon(
+            Icons.star_border,
+            color: color,
+            size: size,
+          );
+        }
       }),
     );
   }
@@ -499,12 +711,14 @@ class ProfileDetail extends StatelessWidget {
 }
 
 class Post {
+  final String postId;
   final String title;
   final String description;
   final String location;
   final String? imagePath;
 
   Post({
+    required this.postId,
     required this.title,
     required this.description,
     required this.location,
@@ -514,6 +728,7 @@ class Post {
   factory Post.fromDocument(DocumentSnapshot doc) {
     var data = doc.data() as Map<String, dynamic>;
     return Post(
+      postId: doc.id,
       title: data['title'] ?? '',
       description: data['description'] ?? '',
       location: data['location'] ?? '',

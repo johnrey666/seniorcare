@@ -1,19 +1,24 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+const sgMail = require('@sendgrid/mail');
 
-const {onRequest} = require("firebase-functions/v2/https");
-const logger = require("firebase-functions/logger");
+admin.initializeApp();
+sgMail.setApiKey(functions.config().sendgrid.key);
 
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
+exports.sendVerificationEmail = functions.https.onCall((data, context) => {
+  const msg = {
+    to: data.email,
+    from: '07209292@dwc-legazpi.edu',
+    subject: 'Verification Code',
+    text: `Your verification code is ${data.code}`,
+  };
 
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+  return sgMail.send(msg)
+    .then(() => {
+      return { success: true };
+    })
+    .catch(error => {
+      console.error('Error sending email:', error);
+      throw new functions.https.HttpsError('internal', 'Unable to send email');
+    });
+});

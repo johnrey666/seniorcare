@@ -65,6 +65,24 @@ class _HomePageState extends State<HomePage> {
     return '$age years old';
   }
 
+  Future<double> _getAverageRating(String userId) async {
+    final reviewsSnapshot = await FirebaseFirestore.instance
+        .collection('reviews')
+        .where('reviewedUserId', isEqualTo: userId)
+        .get();
+
+    if (reviewsSnapshot.docs.isEmpty) {
+      return 0.0;
+    }
+
+    double totalRating = 0.0;
+    for (var doc in reviewsSnapshot.docs) {
+      totalRating += doc['rating'];
+    }
+
+    return totalRating / reviewsSnapshot.docs.length;
+  }
+
   Future<void> _hireCaregiver(
       BuildContext context, DocumentSnapshot caregiverSnapshot) async {
     User? currentUser = FirebaseAuth.instance.currentUser;
@@ -143,6 +161,7 @@ class _HomePageState extends State<HomePage> {
     String profileImageUrl = caregiverSnapshot['profileImageUrl'];
 
     bool isAlreadyHired = await _isAlreadyHired(caregiverSnapshot);
+    double averageRating = await _getAverageRating(caregiverSnapshot.id);
 
     showModalBottomSheet(
       context: context,
@@ -207,11 +226,25 @@ class _HomePageState extends State<HomePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(5, (index) {
-                        return const Icon(
-                          Icons.star,
-                          color: Colors.amber,
-                          size: 24,
-                        );
+                        if (index < averageRating.floor()) {
+                          return const Icon(
+                            Icons.star,
+                            color: Colors.amber,
+                            size: 24,
+                          );
+                        } else if (index < averageRating) {
+                          return const Icon(
+                            Icons.star_half,
+                            color: Colors.amber,
+                            size: 24,
+                          );
+                        } else {
+                          return const Icon(
+                            Icons.star_border,
+                            color: Colors.amber,
+                            size: 24,
+                          );
+                        }
                       }),
                     ),
                     const SizedBox(height: 20),
@@ -365,79 +398,100 @@ class _HomePageState extends State<HomePage> {
                 String expertise = caregiverSnapshot['expertise'];
                 String profileImageUrl = caregiverSnapshot['profileImageUrl'];
 
-                return GestureDetector(
-                  onTap: () => _showDetails(context, caregiverSnapshot),
-                  child: Card(
-                    elevation: 2.0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15.0),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 120,
-                          decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(15),
-                              topRight: Radius.circular(15),
+                return FutureBuilder<double>(
+                  future: _getAverageRating(caregiverSnapshot.id),
+                  builder: (context, snapshot) {
+                    double averageRating = snapshot.data ?? 0.0;
+                    return GestureDetector(
+                      onTap: () => _showDetails(context, caregiverSnapshot),
+                      child: Card(
+                        elevation: 2.0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15.0),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              height: 120,
+                              decoration: BoxDecoration(
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(15),
+                                  topRight: Radius.circular(15),
+                                ),
+                                image: profileImageUrl.isNotEmpty
+                                    ? DecorationImage(
+                                        image: NetworkImage(profileImageUrl),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : const DecorationImage(
+                                        image: AssetImage(
+                                            'assets/images/default.png'),
+                                        fit: BoxFit.cover,
+                                      ),
+                              ),
+                              child: profileImageUrl.isEmpty
+                                  ? const Center(
+                                      child: Icon(
+                                        Icons.person,
+                                        size: 50,
+                                        color: Colors.grey,
+                                      ),
+                                    )
+                                  : null,
                             ),
-                            image: profileImageUrl.isNotEmpty
-                                ? DecorationImage(
-                                    image: NetworkImage(profileImageUrl),
-                                    fit: BoxFit.cover,
-                                  )
-                                : const DecorationImage(
-                                    image:
-                                        AssetImage('assets/images/default.png'),
-                                    fit: BoxFit.cover,
+                            const SizedBox(height: 5),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(5, (index) {
+                                if (index < averageRating.floor()) {
+                                  return const Icon(
+                                    Icons.star,
+                                    color: Colors.amber,
+                                    size: 25,
+                                  );
+                                } else if (index < averageRating) {
+                                  return const Icon(
+                                    Icons.star_half,
+                                    color: Colors.amber,
+                                    size: 25,
+                                  );
+                                } else {
+                                  return const Icon(
+                                    Icons.star_border,
+                                    color: Colors.amber,
+                                    size: 25,
+                                  );
+                                }
+                              }),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '$firstName $lastName',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
                                   ),
-                          ),
-                          child: profileImageUrl.isEmpty
-                              ? const Center(
-                                  child: Icon(
-                                    Icons.person,
-                                    size: 50,
-                                    color: Colors.grey,
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    expertise,
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                    ),
                                   ),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(height: 5),
-                        Row(
-                          children: List.generate(5, (starIndex) {
-                            return const Icon(
-                              Icons.star_border,
-                              color: Colors.amber,
-                              size: 25,
-                            );
-                          }),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '$firstName $lastName',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
+                                ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                expertise,
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
             );

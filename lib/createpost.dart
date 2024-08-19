@@ -8,8 +8,8 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_webservice/places.dart';
-
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart'; // Import the geocoding package
 
 class CreatePostPage extends StatefulWidget {
   const CreatePostPage({super.key});
@@ -155,6 +155,20 @@ class _CreatePostPageState extends State<CreatePostPage> {
     );
   }
 
+  Future<String> _getAddressFromLatLng(LatLng position) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      Placemark place = placemarks[0];
+      return "${place.name}, ${place.locality}, ${place.administrativeArea}, ${place.country}";
+    } catch (e) {
+      print("Error getting address: $e");
+      return "${position.latitude}, ${position.longitude}";
+    }
+  }
+
   Future<void> _pickLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -199,10 +213,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
     );
 
     if (pickedLocation != null && pickedLocation is LatLng) {
+      _locationAddress = await _getAddressFromLatLng(pickedLocation);
       setState(() {
         _selectedLocation = pickedLocation;
-        _locationAddress =
-            '${pickedLocation.latitude}, ${pickedLocation.longitude}';
       });
     }
   }

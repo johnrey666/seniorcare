@@ -1,490 +1,578 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
+import 'edit_profile_page.dart'; // Import the EditProfilePage
+import 'all_review.dart'; // Import the AllReviewPage
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Profile Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: const ProfilePage(),
-    );
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) {
+      return this;
+    }
+    return '${this[0].toUpperCase()}${substring(1)}';
   }
 }
 
-class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+class UserProfilePage extends StatefulWidget {
+  final String userId;
+  final bool isCurrentUser;
+
+  const UserProfilePage({
+    Key? key,
+    required this.userId,
+    this.isCurrentUser = false,
+  }) : super(key: key);
 
   @override
-  _ProfilePageState createState() => _ProfilePageState();
+  _UserProfilePageState createState() => _UserProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
-  late UserProfile userProfile; // Assume fetched UserProfile object
+class _UserProfilePageState extends State<UserProfilePage> {
+  late Future<DocumentSnapshot> userFuture;
+  String fullName = 'User Profile';
+  List<Post> userPosts = [];
+  double averageRating = 0.0;
 
   @override
   void initState() {
     super.initState();
-    // Simulated data, replace with actual Firestore data fetching logic
-    userProfile = UserProfile(
-      profileImageUrl:
-          'https://scontent.fmnl8-2.fna.fbcdn.net/v/t1.6435-9/69831401_2217217731909906_2278803583040225280_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=53a332&_nc_eui2=AeFH7jUadCg5LzyR3nnKMSsPS1Lb2HEIcvFLUtvYcQhy8bB5NJIV0zqqRs7nrQk0DEKXLxgBuwE1xDjT_6UfwaGa&_nc_ohc=b6TKzUORKJQQ7kNvgGDoV8w&_nc_ht=scontent.fmnl8-2.fna&oh=00_AYBBiQshIxsVH5mCzrYeP9NrwU9VsuTBjUFg_2f5uEo1Lw&oe=66A92322',
-      firstName: 'John Rey',
-      lastName: 'Dado',
-      bio: 'Kergiber',
-      starRating: 4.5,
-      dob: '2003-02-04',
-      expertise: 'Caregiverers',
-      location: 'Legazpi City',
-      isVerified: true,
-      contactNumber: '+1234567890',
-      attachedFiles: [
-        'https://cdn.enhancv.com/simple_double_column_resume_template_aecca5d139.png',
-        'https://cdn.enhancv.com/simple_double_column_resume_template_aecca5d139.png',
-        'https://cdn.enhancv.com/simple_double_column_resume_template_aecca5d139.png',
-      ],
-    );
+    userFuture =
+        FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
+    _fetchUserData();
+    _fetchUserPosts();
+    _fetchAverageRating();
+  }
+
+  void _fetchUserData() async {
+    var snapshot = await userFuture;
+    if (snapshot.exists) {
+      var userData = snapshot.data() as Map<String, dynamic>;
+      String first = userData['firstName'] ?? '';
+      String last = userData['lastName'] ?? '';
+      setState(() {
+        fullName = '${first.capitalize()} ${last.capitalize()}';
+      });
+    }
+  }
+
+  void _fetchUserPosts() async {
+    var postsSnapshot = await FirebaseFirestore.instance
+        .collection('posts')
+        .where('userId', isEqualTo: widget.userId)
+        .get();
+
+    setState(() {
+      userPosts =
+          postsSnapshot.docs.map((doc) => Post.fromDocument(doc)).toList();
+    });
+  }
+
+  void _fetchAverageRating() async {
+    final reviewsSnapshot = await FirebaseFirestore.instance
+        .collection('reviews')
+        .where('reviewedUserId', isEqualTo: widget.userId)
+        .get();
+
+    if (reviewsSnapshot.docs.isNotEmpty) {
+      double totalRating = 0.0;
+      for (var doc in reviewsSnapshot.docs) {
+        totalRating += doc['rating'];
+      }
+
+      setState(() {
+        averageRating = totalRating / reviewsSnapshot.docs.length;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ProfileHeader(userProfile: userProfile),
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text(
-                'Attached Files',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      appBar: widget.isCurrentUser
+          ? null
+          : AppBar(
+              backgroundColor: Colors.white,
+              iconTheme: const IconThemeData(
+                color: Color.fromARGB(255, 52, 68, 76),
+              ),
+              titleTextStyle: const TextStyle(
+                color: Color.fromARGB(255, 0, 0, 0),
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+              elevation: 0,
+              title: Text(fullName),
+              leading: IconButton(
+                icon: const FaIcon(FontAwesomeIcons.arrowLeft),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
               ),
             ),
-            FileGrid(attachedFiles: userProfile.attachedFiles),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EditProfilePage(userProfile: userProfile),
+      body: FutureBuilder<DocumentSnapshot>(
+        future: userFuture,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          var userData = snapshot.data!.data() as Map<String, dynamic>;
+          String firstName = userData['firstName'] ?? '';
+          String lastName = userData['lastName'] ?? '';
+          String avatarUrl = userData['profileImageUrl'] ?? '';
+          String patientName = userData['patientName'] ?? '';
+          String expertise = userData['expertise'] ?? '';
+          String location = userData['location'] ?? '';
+          String contactNumber = userData['contactNumber'] ?? '';
+          Timestamp? dobTimestamp = userData['dob'];
+          String dob = dobTimestamp != null
+              ? DateFormat('yyyy-MM-dd').format(dobTimestamp.toDate())
+              : 'Not provided';
+          List<String> optionalFilesUrls = userData['optionalFilesUrls'] != null
+              ? List<String>.from(userData['optionalFilesUrls'])
+              : [];
+
+          bool isClientUser = userData['userType'] == 'Client';
+          bool isVerified = userData['isVerified'] ?? true;
+
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    Container(
+                      height: 250,
+                      decoration: BoxDecoration(
+                        image: avatarUrl.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(avatarUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : const DecorationImage(
+                                image: AssetImage('assets/default_avatar.png'),
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
+                    if (widget.isCurrentUser)
+                      Positioned(
+                        bottom: 8,
+                        right: 16,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // Navigate to EditProfilePage
+                            Navigator.of(context)
+                                .push(
+                              MaterialPageRoute(
+                                builder: (context) => EditProfilePage(
+                                  userId: widget.userId,
+                                ),
+                              ),
+                            )
+                                .then((_) {
+                              // Refresh the user data after returning from edit
+                              setState(() {
+                                userFuture = FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(widget.userId)
+                                    .get();
+                                _fetchUserData();
+                              });
+                            });
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                const Color.fromRGBO(255, 255, 255, 1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          icon: const FaIcon(
+                            FontAwesomeIcons.pen,
+                            color: Colors.blue,
+                          ),
+                          label: const Text(
+                            'Edit Profile',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            '$firstName $lastName',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.light
+                                  ? Colors.black
+                                  : Colors
+                                      .white, // Adjust text color for dark mode
+                            ),
+                          ),
+                          if (isVerified)
+                            const Row(
+                              children: [
+                                SizedBox(width: 8),
+                                Icon(
+                                  Icons.verified,
+                                  color: Colors.blue,
+                                  size: 24,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'verified',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      StarRating(
+                        rating: averageRating,
+                        size: 30,
+                        color: Colors.amber,
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AllReviewPage(
+                                userId: widget.userId,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text(
+                          'View all reviews',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (isClientUser)
+                        ProfileDetail(
+                          icon: FontAwesomeIcons.person,
+                          title: 'Patient Name',
+                          value: patientName,
+                          textColor: Colors.grey,
+                        ),
+                      ProfileDetail(
+                        icon: FontAwesomeIcons.briefcase,
+                        title: 'Expertise',
+                        value: expertise,
+                        textColor: Colors.grey,
+                      ),
+                      ProfileDetail(
+                        icon: FontAwesomeIcons.locationDot,
+                        title: 'Location',
+                        value: location,
+                        textColor: Colors.grey,
+                      ),
+                      ProfileDetail(
+                        icon: FontAwesomeIcons.phone,
+                        title: 'Contact',
+                        value: contactNumber,
+                        textColor: Colors.grey,
+                      ),
+                      ProfileDetail(
+                        icon: FontAwesomeIcons.calendarWeek,
+                        title: 'Date of Birth',
+                        value: dob,
+                        textColor: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      if (isClientUser)
+                        const Text(
+                          'Recent Posts',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      if (isClientUser)
+                        if (userPosts.isEmpty)
+                          const Center(
+                            child: Text('No posts yet.'),
+                          )
+                        else
+                          ListView.builder(
+                            physics: const NeverScrollableScrollPhysics(),
+                            shrinkWrap: true,
+                            itemCount: userPosts.length,
+                            itemBuilder: (context, index) {
+                              var post = userPosts[index];
+
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (post.imagePath != null)
+                                      Image.network(
+                                        post.imagePath!,
+                                        height: 200,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            post.title,
+                                            style: const TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            post.description,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Location: ${post.location}',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                      const SizedBox(height: 16),
+                      if (!isClientUser)
+                        const Text(
+                          'Attached Documents',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      if (optionalFilesUrls.isNotEmpty)
+                        GridView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: 1.5,
+                          ),
+                          itemCount: optionalFilesUrls.length,
+                          itemBuilder: (context, index) {
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => Scaffold(
+                                      appBar: AppBar(),
+                                      body: Center(
+                                        child: InteractiveViewer(
+                                          maxScale: 4.0,
+                                          child: Image.network(
+                                              optionalFilesUrls[index]),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    optionalFilesUrls[index],
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      else if (!isClientUser)
+                        const Text(
+                          'No files available',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ).then((updatedProfile) {
-            if (updatedProfile != null) {
-              setState(() {
-                userProfile = updatedProfile;
-              });
-            }
-          });
+          );
         },
-        child: const Icon(Icons.edit),
       ),
     );
   }
 }
 
-// ProfileHeader widget
-class ProfileHeader extends StatelessWidget {
-  final UserProfile userProfile;
+class StarRating extends StatelessWidget {
+  final double rating;
+  final double size;
+  final Color color;
 
-  const ProfileHeader({super.key, required this.userProfile});
+  const StarRating({
+    Key? key,
+    required this.rating,
+    this.size = 24,
+    this.color = Colors.amber,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        if (index < rating.floor()) {
+          return Icon(
+            Icons.star,
+            color: color,
+            size: size,
+          );
+        } else if (index < rating) {
+          return Icon(
+            Icons.star_half,
+            color: color,
+            size: size,
+          );
+        } else {
+          return Icon(
+            Icons.star_border,
+            color: color,
+            size: size,
+          );
+        }
+      }),
+    );
+  }
+}
+
+class ProfileDetail extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String value;
+  final Color? textColor;
+
+  const ProfileDetail({
+    required this.icon,
+    required this.title,
+    required this.value,
+    this.textColor,
+    Key? key,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 40,
-                backgroundImage: _getImageProvider(userProfile.profileImageUrl),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          '${userProfile.firstName} ${userProfile.lastName}',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (userProfile.isVerified)
-                          const Icon(
-                            Icons.check_circle,
-                            color: Colors.blue,
-                            size: 20,
-                          ),
-                        const SizedBox(width: 8),
-                      ],
-                    ),
-                    RatingBarIndicator(
-                      rating: userProfile.starRating,
-                      itemBuilder: (context, index) => const Icon(
-                        Icons.star,
-                        color: Colors.amber,
-                      ),
-                      itemCount: 5,
-                      itemSize: 20.0,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Icon(
+            icon,
+            color: Theme.of(context).brightness == Brightness.light
+                ? Colors.blueGrey
+                : Colors.white, // Adjust icon color for dark mode
+            size: 30,
           ),
-          const SizedBox(height: 16),
-          Text(userProfile.bio),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Icon(Icons.cake, size: 20),
-              const SizedBox(width: 8),
-              Text('Birthdate: ${userProfile.dob}'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.work, size: 20),
-              const SizedBox(width: 8),
-              Text('Expertise: ${userProfile.expertise}'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.location_on, size: 20),
-              const SizedBox(width: 8),
-              Text('Location: ${userProfile.location}'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.phone, size: 20),
-              const SizedBox(width: 8),
-              Text('Contact Number: ${userProfile.contactNumber}'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  ImageProvider<Object>? _getImageProvider(String imageUrl) {
-    if (imageUrl.startsWith('http') || imageUrl.startsWith('https')) {
-      return NetworkImage(imageUrl);
-    } else {
-      File file = File(imageUrl);
-      if (file.existsSync()) {
-        return FileImage(file);
-      } else {
-        // Handle case where image path is not valid or image does not exist
-        return null; // or return a default image provider as needed
-      }
-    }
-  }
-}
-
-// FileGrid widget
-class FileGrid extends StatelessWidget {
-  final List<String> attachedFiles;
-
-  const FileGrid({super.key, required this.attachedFiles});
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
-      padding: const EdgeInsets.all(16.0),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 8.0,
-        mainAxisSpacing: 8.0,
-      ),
-      itemCount: attachedFiles.length,
-      itemBuilder: (context, index) {
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => Scaffold(
-                  appBar: AppBar(),
-                  body: Center(
-                    child: InteractiveViewer(
-                      maxScale: 4.0,
-                      child: Image.network(attachedFiles[index]),
-                    ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).brightness == Brightness.light
+                        ? Colors.black
+                        : Colors.white, // Adjust title color for dark mode
                   ),
                 ),
-              ),
-            );
-          },
-          child: Image.network(attachedFiles[index]),
-        );
-      },
-    );
-  }
-}
-
-class EditProfilePage extends StatefulWidget {
-  final UserProfile userProfile;
-
-  const EditProfilePage({super.key, required this.userProfile});
-
-  @override
-  _EditProfilePageState createState() => _EditProfilePageState();
-}
-
-class _EditProfilePageState extends State<EditProfilePage> {
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _firstNameController;
-  late TextEditingController _lastNameController;
-  late TextEditingController _locationController;
-  late TextEditingController _contactNumberController;
-  late TextEditingController _expertiseController;
-  late DateTime _dob;
-  XFile? _profileImage;
-
-  @override
-  void initState() {
-    super.initState();
-    _firstNameController =
-        TextEditingController(text: widget.userProfile.firstName);
-    _lastNameController =
-        TextEditingController(text: widget.userProfile.lastName);
-    _locationController =
-        TextEditingController(text: widget.userProfile.location);
-    _contactNumberController =
-        TextEditingController(text: widget.userProfile.contactNumber);
-    _expertiseController =
-        TextEditingController(text: widget.userProfile.expertise);
-    _dob = DateTime.parse(widget.userProfile.dob);
-  }
-
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _locationController.dispose();
-    _contactNumberController.dispose();
-    _expertiseController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: source);
-    setState(() {
-      _profileImage = image;
-    });
-  }
-
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    UserProfile updatedProfile = UserProfile(
-      profileImageUrl: widget.userProfile.profileImageUrl,
-      firstName: _firstNameController.text,
-      lastName: _lastNameController.text,
-      bio: widget.userProfile.bio,
-      starRating: widget.userProfile.starRating,
-      dob: DateFormat('yyyy-MM-dd').format(_dob),
-      expertise: _expertiseController.text,
-      location: _locationController.text,
-      isVerified: widget.userProfile.isVerified,
-      contactNumber: _contactNumberController.text,
-      attachedFiles: widget.userProfile.attachedFiles,
-    );
-
-    // Save profile logic here (e.g., update Firestore)
-
-    Navigator.pop(context, updatedProfile);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Profile'),
-        actions: [
-          IconButton(
-            onPressed: _saveProfile,
-            icon: const Icon(Icons.check),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: textColor ??
+                        (Theme.of(context).brightness == Brightness.light
+                            ? Colors.black54
+                            : Colors.white), // Adjust text color for dark mode
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: GestureDetector(
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('Choose an option'),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ListTile(
-                                title: const Text('Camera'),
-                                onTap: () {
-                                  _pickImage(ImageSource.camera);
-                                  Navigator.pop(context);
-                                },
-                              ),
-                              ListTile(
-                                title: const Text('Gallery'),
-                                onTap: () {
-                                  _pickImage(ImageSource.gallery);
-                                  Navigator.pop(context);
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundImage: _profileImage != null
-                          ? FileImage(File(_profileImage!.path))
-                          : null,
-                    )),
-              ),
-              TextFormField(
-                controller: _firstNameController,
-                decoration: const InputDecoration(labelText: 'First Name'),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'Please enter your first name';
-                  }
-                  return null;
-                },
-              ),
-              TextFormField(
-                controller: _lastNameController,
-                decoration: const InputDecoration(labelText: 'Last Name'),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'Please enter your last name';
-                  }
-                  return null;
-                },
-              ),
-              TextFormField(
-                controller: _locationController,
-                decoration: const InputDecoration(labelText: 'Location'),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'Please enter your location';
-                  }
-                  return null;
-                },
-              ),
-              TextFormField(
-                controller: _contactNumberController,
-                decoration: const InputDecoration(labelText: 'Contact Number'),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'Please enter your contact number';
-                  }
-                  return null;
-                },
-              ),
-              TextFormField(
-                controller: _expertiseController,
-                decoration: const InputDecoration(labelText: 'Expertise'),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'Please enter your expertise';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              const Text('Date of Birth'),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () async {
-                  final DateTime? pickedDate = await showDatePicker(
-                    context: context,
-                    initialDate: _dob,
-                    firstDate: DateTime(1900),
-                    lastDate: DateTime.now(),
-                  );
-                  if (pickedDate != null && pickedDate != _dob) {
-                    setState(() {
-                      _dob = pickedDate;
-                    });
-                  }
-                },
-                child: Text(DateFormat('yyyy-MM-dd').format(_dob)),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
 
-class UserProfile {
-  final String profileImageUrl;
-  final String firstName;
-  final String lastName;
-  final String bio;
-  final double starRating;
-  final String dob;
-  final String expertise;
+class Post {
+  final String title;
+  final String description;
   final String location;
-  final bool isVerified;
-  final String contactNumber;
-  final List<String> attachedFiles;
+  final String? imagePath;
 
-  UserProfile({
-    required this.profileImageUrl,
-    required this.firstName,
-    required this.lastName,
-    required this.bio,
-    required this.starRating,
-    required this.dob,
-    required this.expertise,
+  Post({
+    required this.title,
+    required this.description,
     required this.location,
-    required this.isVerified,
-    required this.contactNumber,
-    required this.attachedFiles,
+    this.imagePath,
   });
+
+  factory Post.fromDocument(DocumentSnapshot doc) {
+    var data = doc.data() as Map<String, dynamic>;
+    return Post(
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
+      location: data['location'] ?? '',
+      imagePath: data['imagePath'],
+    );
+  }
 }

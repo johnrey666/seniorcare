@@ -70,7 +70,9 @@ class AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const CircularProgressIndicator();
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
         } else if (snapshot.hasData) {
           return FutureBuilder<DocumentSnapshot>(
             future: FirebaseFirestore.instance
@@ -79,7 +81,9 @@ class AuthGate extends StatelessWidget {
                 .get(),
             builder: (context, userSnapshot) {
               if (userSnapshot.connectionState == ConnectionState.waiting) {
-                return const CircularProgressIndicator();
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
               } else if (userSnapshot.hasData) {
                 String userType = userSnapshot.data!['userType'];
                 return MainPage(
@@ -391,6 +395,9 @@ class _SignUpPageState extends State<SignUpPage> {
         const SnackBar(content: Text('Verification code sent to email')),
       );
     } catch (e) {
+      setState(() {
+        _isCodeSent = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to send verification code: $e')),
       );

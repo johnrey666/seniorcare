@@ -1,4 +1,3 @@
-// edit_profile_page.dart
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -133,6 +132,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edit Profile'),
+        backgroundColor: Colors.white,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -159,59 +159,36 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                TextFormField(
+                _buildTextField(
                   controller: _firstNameController,
-                  decoration: const InputDecoration(labelText: 'First Name'),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a first name';
-                    }
-                    return null;
-                  },
+                  label: 'First Name',
                 ),
-                TextFormField(
+                _buildTextField(
                   controller: _lastNameController,
-                  decoration: const InputDecoration(labelText: 'Last Name'),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a last name';
-                    }
-                    return null;
-                  },
+                  label: 'Last Name',
                 ),
-                TextFormField(
+                _buildTextField(
                   controller: _expertiseController,
-                  decoration: const InputDecoration(labelText: 'Expertise'),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter expertise';
-                    }
-                    return null;
-                  },
+                  label: 'Expertise',
                 ),
-                TextFormField(
+                _buildTextField(
                   controller: _locationController,
-                  decoration: const InputDecoration(labelText: 'Location'),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a location';
-                    }
-                    return null;
-                  },
+                  label: 'Location',
+                ),
+                _buildTextField(
+                  controller: _contactNumberController,
+                  label: 'Contact Number',
                 ),
                 GestureDetector(
                   onTap: () => _selectDate(context),
                   child: AbsorbPointer(
-                    child: TextFormField(
+                    child: _buildTextField(
                       controller: _dobController,
-                      decoration:
-                          const InputDecoration(labelText: 'Date of Birth'),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a date of birth';
-                        }
-                        return null;
-                      },
+                      label: 'Date of Birth',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.calendar_today),
+                        onPressed: () => _selectDate(context),
+                      ),
                     ),
                   ),
                 ),
@@ -220,7 +197,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   child: ElevatedButton(
                     onPressed: _saveProfile,
                     style: ElevatedButton.styleFrom(
-                      foregroundColor: Colors.white,
                       backgroundColor: Colors.blue,
                       padding:
                           EdgeInsets.symmetric(horizontal: 40, vertical: 16),
@@ -276,5 +252,31 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
       );
     }
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    Widget? suffixIcon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: suffixIcon,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8.0),
+          ),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'Please enter $label';
+          }
+          return null;
+        },
+      ),
+    );
   }
 }

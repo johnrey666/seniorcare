@@ -12,6 +12,7 @@ class ClientFormPage extends StatefulWidget {
   const ClientFormPage({super.key, required this.toggleTheme});
 
   @override
+  // ignore: library_private_types_in_public_api
   _ClientFormPageState createState() => _ClientFormPageState();
 }
 
