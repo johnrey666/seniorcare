@@ -1,5 +1,3 @@
-// ignore_for_file: library_private_types_in_public_api, use_build_context_synchronously
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -8,8 +6,6 @@ import 'package:seniorcare/admin.dart';
 import 'package:seniorcare/forgotpassword.dart';
 import 'package:seniorcare/main_page.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:math';
-import 'package:flutter_email_sender/flutter_email_sender.dart';
 
 import 'client_form.dart';
 import 'caregiver_form.dart';
@@ -70,8 +66,9 @@ class AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(),
+          // Removed CircularProgressIndicator from here
+          return const Scaffold(
+            body: Center(child: Text('Loading...')), // Placeholder text
           );
         } else if (snapshot.hasData) {
           return FutureBuilder<DocumentSnapshot>(
@@ -81,8 +78,9 @@ class AuthGate extends StatelessWidget {
                 .get(),
             builder: (context, userSnapshot) {
               if (userSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(),
+                // Removed CircularProgressIndicator from here
+                return const Scaffold(
+                  body: Center(child: Text('Loading...')), // Placeholder text
                 );
               } else if (userSnapshot.hasData) {
                 String userType = userSnapshot.data!['userType'];
@@ -115,7 +113,6 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  bool _isLoading = false;
   bool _passwordVisible = false;
 
   void _togglePasswordVisibility() {
@@ -125,10 +122,6 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
       UserCredential userCredential =
           await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -177,10 +170,6 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on FirebaseAuthException catch (e) {
       _showErrorDialog(e.message!);
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
@@ -283,25 +272,22 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 20),
-              if (_isLoading)
-                const CircularProgressIndicator()
-              else
-                ElevatedButton(
-                  onPressed: _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 50, vertical: 15),
+              ElevatedButton(
+                onPressed: _login,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
                   ),
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(
-                        color: Colors.white), // Set text color to white
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                 ),
+                child: const Text(
+                  'Login',
+                  style:
+                      TextStyle(color: Colors.white), // Set text color to white
+                ),
+              ),
               const SizedBox(height: 10),
               TextButton(
                 onPressed: () {
@@ -353,14 +339,9 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-  final TextEditingController _verificationCodeController =
-      TextEditingController();
   String? _selectedUserType;
   final List<String> _userTypes = ['Caregiver', 'Client'];
-  bool _isLoading = false;
   bool _passwordVisible = false;
-  String? _generatedCode;
-  bool _isCodeSent = false;
 
   void _togglePasswordVisibility() {
     setState(() {
@@ -368,56 +349,11 @@ class _SignUpPageState extends State<SignUpPage> {
     });
   }
 
-  String _generateVerificationCode() {
-    var rng = Random();
-    return (rng.nextInt(900000) + 100000).toString(); // Generate a 6-digit code
-  }
-
-  Future<void> _sendVerificationCode() async {
-    String code = _generateVerificationCode();
-    setState(() {
-      _generatedCode = code;
-    });
-
-    final Email email = Email(
-      body: 'Your verification code is $code',
-      subject: 'Verification Code',
-      recipients: [_emailController.text],
-      isHTML: false,
-    );
-
-    try {
-      await FlutterEmailSender.send(email);
-      setState(() {
-        _isCodeSent = true;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verification code sent to email')),
-      );
-    } catch (e) {
-      setState(() {
-        _isCodeSent = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send verification code: $e')),
-      );
-    }
-  }
-
   Future<void> _register() async {
     if (_passwordController.text != _confirmPasswordController.text) {
       _showErrorDialog("Passwords do not match.");
       return;
     }
-
-    if (_verificationCodeController.text != _generatedCode) {
-      _showErrorDialog("Invalid verification code.");
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
 
     try {
       UserCredential userCredential =
@@ -471,10 +407,6 @@ class _SignUpPageState extends State<SignUpPage> {
       }
     } catch (e) {
       _showErrorDialog(e.toString());
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
@@ -515,34 +447,22 @@ class _SignUpPageState extends State<SignUpPage> {
                 fit: BoxFit.cover,
               ),
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _emailController,
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: const Icon(Icons.email),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide:
-                              const BorderSide(color: Colors.blueAccent),
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            vertical: 15, horizontal: 20),
-                      ),
-                    ),
+              TextField(
+                controller: _emailController,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: const Icon(Icons.email),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: Colors.blueAccent),
+                    borderRadius: BorderRadius.circular(25),
                   ),
-                  const SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: _isCodeSent ? null : _sendVerificationCode,
-                    child: const Text('Send Code'),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(25),
                   ),
-                ],
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+                ),
               ),
               const SizedBox(height: 20),
               TextField(
@@ -553,11 +473,10 @@ class _SignUpPageState extends State<SignUpPage> {
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _passwordVisible
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                      color: Colors.grey,
-                    ),
+                        _passwordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: Colors.grey),
                     onPressed: _togglePasswordVisibility,
                   ),
                   focusedBorder: OutlineInputBorder(
@@ -581,31 +500,12 @@ class _SignUpPageState extends State<SignUpPage> {
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _passwordVisible
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                      color: Colors.grey,
-                    ),
+                        _passwordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: Colors.grey),
                     onPressed: _togglePasswordVisibility,
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Colors.blueAccent),
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _verificationCodeController,
-                decoration: InputDecoration(
-                  labelText: 'Verification Code',
-                  prefixIcon: const Icon(Icons.verified),
                   focusedBorder: OutlineInputBorder(
                     borderSide: const BorderSide(color: Colors.blueAccent),
                     borderRadius: BorderRadius.circular(25),
@@ -648,24 +548,21 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
               ),
               const SizedBox(height: 20),
-              if (_isLoading)
-                const CircularProgressIndicator()
-              else
-                ElevatedButton(
-                  onPressed: _register,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 50, vertical: 15),
+              ElevatedButton(
+                onPressed: _register,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
                   ),
-                  child: const Text(
-                    'Sign Up',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                 ),
+                child: const Text(
+                  'Sign Up',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
               const SizedBox(height: 10),
               TextButton(
                 onPressed: () {

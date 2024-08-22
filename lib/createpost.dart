@@ -1,15 +1,13 @@
-// ignore_for_file: library_private_types_in_public_api
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:google_maps_webservice/places.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart'; // Import the geocoding package
+import 'package:geocoding/geocoding.dart';
 
 class CreatePostPage extends StatefulWidget {
   const CreatePostPage({super.key});
@@ -24,13 +22,26 @@ class _CreatePostPageState extends State<CreatePostPage> {
   File? _selectedImage;
   bool _isLoading = false;
   bool _isImagePickerActive = false;
-  LatLng? _selectedLocation;
+  LatLng _selectedLocation =
+      LatLng(13.1435, 123.7438); // Default to Daraga, Albay, Philippines
   String _locationAddress = '';
 
+  @override
+  void initState() {
+    super.initState();
+    _initializeLocation();
+  }
+
+  Future<void> _initializeLocation() async {
+    setState(() {
+      _selectedLocation =
+          LatLng(13.1435, 123.7438); // Daraga, Albay, Philippines
+    });
+    _locationAddress = await _getAddressFromLatLng(_selectedLocation);
+  }
+
   Future<void> _pickImage() async {
-    if (_isImagePickerActive) {
-      return;
-    }
+    if (_isImagePickerActive) return;
 
     setState(() {
       _isImagePickerActive = true;
@@ -102,8 +113,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
         'title': _titleController.text,
         'description': _descriptionController.text,
         'location': _locationAddress,
-        'latitude': _selectedLocation?.latitude,
-        'longitude': _selectedLocation?.longitude,
+        'latitude': _selectedLocation.latitude,
+        'longitude': _selectedLocation.longitude,
         'imagePath': imageUrl ?? '',
         'userId': user.uid,
         'profileImageUrl': profileImageUrl,
@@ -117,7 +128,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
       _descriptionController.clear();
       setState(() {
         _selectedImage = null;
-        _selectedLocation = null;
+        _selectedLocation =
+            LatLng(13.1435, 123.7438); // Reset to default location
         _locationAddress = '';
       });
 
@@ -170,18 +182,13 @@ class _CreatePostPageState extends State<CreatePostPage> {
   }
 
   Future<void> _pickLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    // Check if location services are enabled
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _showErrorDialog('Location services are disabled.');
       return;
     }
 
-    // Check location permissions
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
@@ -302,23 +309,11 @@ class _CreatePostPageState extends State<CreatePostPage> {
               ],
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _submitPost,
-                style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.all(Colors.blue),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text(
-                    'Post',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
+                onPressed: _isLoading ? null : _submitPost,
+                child: _isLoading
+                    ? const CircularProgressIndicator()
+                    : const Text('Submit Post'),
               ),
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: CircularProgressIndicator(),
-                ),
             ],
           ),
         ),
@@ -330,7 +325,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
 class LocationPicker extends StatefulWidget {
   final LatLng initialLocation;
 
-  const LocationPicker({Key? key, required this.initialLocation})
+  const LocationPicker({required this.initialLocation, Key? key})
       : super(key: key);
 
   @override
@@ -340,57 +335,62 @@ class LocationPicker extends StatefulWidget {
 class _LocationPickerState extends State<LocationPicker> {
   late LatLng _pickedLocation;
   final TextEditingController _searchController = TextEditingController();
-  final GoogleMapsPlaces _places =
-      GoogleMapsPlaces(apiKey: 'AIzaSyD1M18m1ppPKZVM0n30h2e5vVzCwrABQqw');
-  List<Prediction> _predictions = [];
-  late GoogleMapController _mapController;
+  List<Location> _searchResults = [];
+  late MapController _mapController;
 
   @override
   void initState() {
     super.initState();
     _pickedLocation = widget.initialLocation;
+    _mapController = MapController();
   }
 
-  void _onTap(LatLng position) {
+  void _onMapTapped(LatLng location) {
     setState(() {
-      _pickedLocation = position;
+      _pickedLocation = location;
     });
   }
 
-  Future<void> _searchPlaces(String query) async {
+  void _onSaveLocation() {
+    Navigator.of(context).pop(_pickedLocation);
+  }
+
+  Future<void> _searchPlace(String query) async {
     if (query.isEmpty) {
       setState(() {
-        _predictions = [];
+        _searchResults = [];
       });
       return;
     }
 
-    PlacesSearchResponse response = await _places.searchByText(query);
-
-    setState(() {
-      _predictions = response.results.cast<Prediction>();
-    });
+    try {
+      List<Location> locations = await locationFromAddress(query);
+      setState(() {
+        _searchResults = locations;
+      });
+    } catch (e) {
+      print("Error searching location: $e");
+      setState(() {
+        _searchResults = [];
+      });
+    }
   }
 
-  void _onPredictionTap(Prediction prediction) async {
-    PlacesDetailsResponse details =
-        await _places.getDetailsByPlaceId(prediction.placeId!);
-    final lat = details.result.geometry!.location.lat;
-    final lng = details.result.geometry!.location.lng;
-
+  void _onSearchResultTap(Location location) {
+    final LatLng newLocation = LatLng(location.latitude, location.longitude);
     setState(() {
-      _pickedLocation = LatLng(lat, lng);
-      _predictions = [];
+      _pickedLocation = newLocation;
+      _searchResults = [];
       _searchController.clear();
-      _mapController.animateCamera(CameraUpdate.newLatLng(_pickedLocation));
     });
+    _mapController.move(newLocation, 15.0);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pick a Location'),
+        title: const Text('Pick Location'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60.0),
           child: Padding(
@@ -404,32 +404,53 @@ class _LocationPickerState extends State<LocationPicker> {
                   borderRadius: BorderRadius.circular(8.0),
                 ),
               ),
-              onChanged: _searchPlaces,
+              onChanged: _searchPlace,
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: _onSaveLocation,
+          ),
+        ],
       ),
       body: Stack(
         children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: _pickedLocation,
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              center: _pickedLocation,
               zoom: 15.0,
+              onTap: (tapPosition, point) {
+                _onMapTapped(point);
+              },
             ),
-            onMapCreated: (controller) {
-              _mapController = controller;
-            },
-            onTap: _onTap,
-            markers: {
-              Marker(
-                markerId: const MarkerId('picked-location'),
-                position: _pickedLocation,
+            children: [
+              TileLayer(
+                urlTemplate:
+                    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                subdomains: ['a', 'b', 'c'],
               ),
-            },
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    width: 80.0,
+                    height: 80.0,
+                    point: _pickedLocation,
+                    builder: (ctx) => const Icon(
+                      Icons.location_on,
+                      size: 40,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          if (_predictions.isNotEmpty)
+          if (_searchResults.isNotEmpty)
             Positioned(
-              top: 100,
+              top: 110,
               left: 15,
               right: 15,
               child: Material(
@@ -437,23 +458,19 @@ class _LocationPickerState extends State<LocationPicker> {
                 borderRadius: BorderRadius.circular(8.0),
                 child: ListView.builder(
                   shrinkWrap: true,
-                  itemCount: _predictions.length,
+                  itemCount: _searchResults.length,
                   itemBuilder: (context, index) {
+                    final location = _searchResults[index];
                     return ListTile(
-                      title: Text(_predictions[index].description!),
-                      onTap: () => _onPredictionTap(_predictions[index]),
+                      title:
+                          Text('${location.latitude}, ${location.longitude}'),
+                      onTap: () => _onSearchResultTap(location),
                     );
                   },
                 ),
               ),
             ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.pop(context, _pickedLocation);
-        },
-        child: const Icon(Icons.check),
       ),
     );
   }

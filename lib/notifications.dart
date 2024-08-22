@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'conversation.dart'; // Import the conversation page
 
 class NotificationsPage extends StatelessWidget {
   const NotificationsPage({super.key});
@@ -9,62 +8,30 @@ class NotificationsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notifications'),
-      ),
-      body: StreamBuilder<QuerySnapshot>(
+      body: StreamBuilder(
         stream: FirebaseFirestore.instance
-            .collection('notifications')
-            .where('recipientId',
+            .collection('hireRequests')
+            .where('caregiverId',
                 isEqualTo: FirebaseAuth.instance.currentUser?.uid)
-            .orderBy('timestamp', descending: true)
             .snapshots(),
-        builder: (context, snapshot) {
-          // Check if the snapshot is still loading
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          // Check if there's an error in the snapshot
-          if (snapshot.hasError) {
+        builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+          if (!snapshot.hasData) {
             return const Center(
-                child: Text('An error occurred while loading notifications.'));
+              child: CircularProgressIndicator(),
+            );
           }
 
-          // Check if there's no data or the data is empty
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('No notifications available.'));
-          }
-
-          // Map the documents to a list of NotificationItems
           final notifications = snapshot.data!.docs.map((doc) {
-            final data =
-                doc.data() as Map<String, dynamic>?; // Safely cast the data
-            if (data == null) {
-              return const Center(
-                  child: Text('Error: Invalid notification data.'));
-            }
-
             return NotificationItem(
-              senderName: data['senderName'] ?? 'Unknown',
-              avatarUrl: data['avatarUrl'] ?? '',
-              message: data['message'] ?? 'No message',
-              type: data['type'] ?? '',
-              senderId: data['senderId'] ?? '',
-              conversationId: data['conversationId'] ?? '',
-              onMessagePressed: () {
-                _navigateToConversation(
-                  context,
-                  data['conversationId'] ?? '',
-                  data['senderId'] ?? '',
-                  data['senderName'] ?? 'Unknown',
-                  data['avatarUrl'] ?? '',
-                );
+              senderName: doc['senderName'],
+              avatarUrl: doc['avatarUrl'],
+              action: doc['status'],
+              onActionPressed: () {
+                _showNotificationDialog(context, doc);
               },
             );
           }).toList();
 
-          // Return the ListView of notifications
           return ListView.builder(
             itemCount: notifications.length,
             itemBuilder: (context, index) {
@@ -76,19 +43,66 @@ class NotificationsPage extends StatelessWidget {
     );
   }
 
-  void _navigateToConversation(BuildContext context, String conversationId,
-      String senderId, String senderName, String avatarUrl) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ConversationPage(
-          conversationId: conversationId,
-          userName: senderName,
-          avatarUrl: avatarUrl,
-          userId: senderId,
-        ),
-      ),
+  void _showNotificationDialog(BuildContext context, DocumentSnapshot doc) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Hire Request from ${doc['senderName']}'),
+          content: const Text('Do you accept this hire request?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Decline'),
+              onPressed: () {
+                _updateHireRequestStatus(doc.id, 'Declined');
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Accept'),
+              onPressed: () {
+                _updateHireRequestStatus(doc.id, 'Accepted');
+                _createConversation(doc);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  Future<void> _updateHireRequestStatus(String requestId, String status) async {
+    if (status == 'Declined') {
+      await FirebaseFirestore.instance
+          .collection('hireRequests')
+          .doc(requestId)
+          .delete();
+    } else {
+      await FirebaseFirestore.instance
+          .collection('hireRequests')
+          .doc(requestId)
+          .update({
+        'status': status,
+      });
+    }
+  }
+
+  Future<void> _createConversation(DocumentSnapshot doc) async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) return;
+
+    String senderName = doc['senderName'] ?? 'Unknown';
+    String currentUserName = currentUser.displayName ?? 'Unknown';
+
+    await FirebaseFirestore.instance.collection('conversations').add({
+      'users': [currentUser.uid, doc['senderId']],
+      'userNames': [currentUserName, senderName],
+      'lastMessage': '',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'lastMessageSender': '',
+    });
   }
 }
 
@@ -96,44 +110,33 @@ class NotificationsPage extends StatelessWidget {
 class NotificationItem extends StatelessWidget {
   final String senderName;
   final String avatarUrl;
-  final String message;
-  final String type;
-  final String senderId;
-  final String conversationId;
-  final VoidCallback onMessagePressed;
+  final String action;
+  final VoidCallback onActionPressed;
 
   const NotificationItem({
     super.key,
     required this.senderName,
     required this.avatarUrl,
-    required this.message,
-    required this.type,
-    required this.senderId,
-    required this.conversationId,
-    required this.onMessagePressed,
+    required this.action,
+    required this.onActionPressed,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       leading: CircleAvatar(
-        backgroundImage: avatarUrl.isNotEmpty
-            ? NetworkImage(avatarUrl)
-            : const AssetImage('assets/default_avatar.png') as ImageProvider,
+        backgroundImage: NetworkImage(avatarUrl),
       ),
-      title: Text(senderName),
-      subtitle: Text(message),
-      trailing: type == 'HireNotification'
-          ? ElevatedButton(
-              onPressed: onMessagePressed,
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-              child: const Text('Send Message'),
-            )
-          : null,
+      title: Text('$senderName sent an application'),
+      trailing: ElevatedButton(
+        onPressed: action == 'Accepted' ? null : onActionPressed,
+        style: ElevatedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        child: Text(action == 'Accepted' ? 'Accepted' : 'View'),
+      ),
     );
   }
 }

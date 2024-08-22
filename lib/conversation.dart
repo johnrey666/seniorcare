@@ -1,11 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:seniorcare/userprofile.dart';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:seniorcare/review.dart'; // Import the ReviewPage
@@ -325,7 +325,57 @@ class _ConversationPageState extends State<ConversationPage> {
   }
 
   void _report() {
-    print('Conversation reported');
+    showDialog(
+      context: context,
+      builder: (context) {
+        TextEditingController reportController = TextEditingController();
+
+        return AlertDialog(
+          title: const Text('Report Conversation'),
+          content: TextField(
+            controller: reportController,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              hintText: 'Describe the issue...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _submitReport(reportController.text);
+                Navigator.pop(context);
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _submitReport(String reportText) async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null || reportText.isEmpty) return;
+
+    await FirebaseFirestore.instance.collection('reports').add({
+      'conversationId': widget.conversationId,
+      'reportedUserId': widget.userId,
+      'reporterId': currentUser.uid,
+      'reportText': reportText,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Report submitted successfully')),
+    );
   }
 
   void _showCancelConfirmationDialog() {

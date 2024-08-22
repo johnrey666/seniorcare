@@ -4,7 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:seniorcare/main.dart';
 import 'caregiver_list.dart';
 import 'client_list.dart';
-
+import 'reports.dart'; // Import the ReportsPage
 
 class AdminPage extends StatelessWidget {
   final void Function() toggleTheme;
@@ -37,6 +37,18 @@ class AdminPage extends StatelessWidget {
               leading: const FaIcon(FontAwesomeIcons.solidMoon),
               title: const Text('Dark Mode'),
               onTap: toggleTheme,
+            ),
+            ListTile(
+              leading: const FaIcon(FontAwesomeIcons.fileAlt),
+              title: const Text('Reports'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ReportsPage(),
+                  ),
+                );
+              },
             ),
             ListTile(
               leading: const FaIcon(FontAwesomeIcons.rightFromBracket),

@@ -1,5 +1,3 @@
-// ignore_for_file: library_private_types_in_public_api, use_build_context_synchronously
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -22,9 +20,7 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _contactNumberController =
       TextEditingController();
-
   final TextEditingController _expertiseController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
   DateTime _dob = DateTime.now();
   bool _isMale = true;
   bool _isLoading = false;
@@ -33,7 +29,6 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
   XFile? _selfieImage;
   final List<XFile> _optionalFiles = [];
   int _currentStep = 1;
-  GeoPoint? _location;
 
   Future<void> _pickImage(ImageSource source, String type) async {
     final ImagePicker picker = ImagePicker();
@@ -88,7 +83,6 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
   Future<void> _submitForm() async {
     if (_firstNameController.text.isEmpty ||
         _lastNameController.text.isEmpty ||
-        _location == null ||
         _contactNumberController.text.isEmpty ||
         _expertiseController.text.isEmpty ||
         _profileImage == null ||
@@ -127,7 +121,6 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'firstName': _firstNameController.text,
         'lastName': _lastNameController.text,
-        'location': _location,
         'contactNumber': _contactNumberController.text,
         'expertise': _expertiseController.text,
         'dob': _dob,
@@ -159,7 +152,6 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
   void _nextStep() {
     if (_firstNameController.text.isEmpty ||
         _lastNameController.text.isEmpty ||
-        _location == null ||
         _contactNumberController.text.isEmpty ||
         _expertiseController.text.isEmpty ||
         _profileImage == null) {
@@ -307,26 +299,6 @@ class _CaregiverFormPageState extends State<CaregiverFormPage> {
               style: const TextStyle(fontSize: 14),
             ),
           ),
-        ),
-        const SizedBox(height: 20),
-        TextField(
-          controller: _locationController,
-          decoration: InputDecoration(
-            labelText: 'Location (Latitude, Longitude)',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
-          ),
-          style: const TextStyle(fontSize: 14),
-          onChanged: (value) {
-            // Parse and set the location GeoPoint
-            List<String> latLng =
-                value.split(',').map((e) => e.trim()).toList();
-            if (latLng.length == 2) {
-              setState(() {
-                _location =
-                    GeoPoint(double.parse(latLng[0]), double.parse(latLng[1]));
-              });
-            }
-          },
         ),
         const SizedBox(height: 20),
         TextField(

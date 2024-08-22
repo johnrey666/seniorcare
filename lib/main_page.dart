@@ -437,12 +437,6 @@ class _MainPageState extends State<MainPage> {
                 );
               },
             ),
-          IconButton(
-            icon: const FaIcon(FontAwesomeIcons.cog),
-            onPressed: () {
-              _openSettingsModal(context);
-            },
-          ),
         ],
       ),
       drawer: Drawer(

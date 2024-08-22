@@ -227,6 +227,26 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  Future<void> _deletePost(String postId) async {
+    try {
+      // Delete the post from Firestore
+      await FirebaseFirestore.instance.collection('posts').doc(postId).delete();
+
+      // Remove the post from the local list
+      setState(() {
+        userPosts.removeWhere((post) => post.postId == postId);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post deleted successfully.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete post: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -528,6 +548,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                         ],
                                       ),
                                     ),
+                                    if (widget
+                                        .isCurrentUser) // Add this condition to show the dropdown menu
+                                      Align(
+                                        alignment: Alignment.topRight,
+                                        child: PopupMenuButton<String>(
+                                          onSelected: (value) {
+                                            if (value == 'Delete') {
+                                              _deletePost(post.postId);
+                                            }
+                                          },
+                                          itemBuilder: (context) => [
+                                            const PopupMenuItem<String>(
+                                              value: 'Delete',
+                                              child: Text('Delete'),
+                                            ),
+                                          ],
+                                          icon: const Icon(Icons.more_vert),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               );

@@ -106,11 +106,11 @@ class _CaregiversHomePageState extends State<CaregiversHomePage> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 padding: const EdgeInsets.symmetric(
-                    vertical: 12, horizontal: 24), // Adjust padding
+                    vertical: 12, horizontal: 72), // Adjust padding
               ),
               child: const Text(
                 'Find Job Opportunities Near You',
-                style: TextStyle(fontSize: 16),
+                style: TextStyle(fontSize: 14),
               ),
             ),
             const SizedBox(
@@ -152,8 +152,6 @@ class _CaregiversHomePageState extends State<CaregiversHomePage> {
                   var imagePath = data['imagePath'];
                   var clientId = data['userId'];
                   var postId = post.id;
-
-                  bool isPostSaved = savedPosts.contains(postId);
 
                   return Card(
                     elevation: 4,
@@ -211,25 +209,20 @@ class _CaregiversHomePageState extends State<CaregiversHomePage> {
                                     ],
                                   ),
                                 ),
-                                IconButton(
-                                  icon: isPostSaved
-                                      ? const Icon(Icons.bookmark)
-                                      : const Icon(Icons.bookmark_border),
-                                  onPressed: () {
-                                    setState(() {
-                                      if (isPostSaved) {
-                                        savedPosts.remove(postId);
-                                      } else {
-                                        savedPosts.add(postId);
-                                      }
-                                    });
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Post Saved!'),
-                                      ),
-                                    );
+                                PopupMenuButton<String>(
+                                  onSelected: (String result) {
+                                    if (result == 'report') {
+                                      _reportPost(postId, userName);
+                                    }
                                   },
+                                  itemBuilder: (BuildContext context) =>
+                                      <PopupMenuEntry<String>>[
+                                    const PopupMenuItem<String>(
+                                      value: 'report',
+                                      child: Text('Report'),
+                                    ),
+                                  ],
+                                  child: const Icon(Icons.more_vert),
                                 ),
                               ],
                             ),
@@ -335,7 +328,49 @@ class _CaregiversHomePageState extends State<CaregiversHomePage> {
     );
   }
 
-  // Modified function to apply for a job
+// Function to report a post
+  Future<void> _reportPost(String postId, String userName) async {
+    // Check if the user has already reported this post
+    var existingReport = await FirebaseFirestore.instance
+        .collection('reportedPosts')
+        .where('postId', isEqualTo: postId)
+        .where('reporterId', isEqualTo: currentUser!.uid)
+        .get();
+
+    if (existingReport.docs.isNotEmpty) {
+      // Show message if already reported
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You have already reported this post.'),
+        ),
+      );
+      return;
+    }
+
+    // Fetch the current user's details from Firestore
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser!.uid)
+        .get();
+
+    String reporterName = userDoc['firstName'] + ' ' + userDoc['lastName'];
+
+    // Add the report to Firestore
+    await FirebaseFirestore.instance.collection('reportedPosts').add({
+      'postId': postId,
+      'reportedBy': reporterName,
+      'reporterId': currentUser!.uid, // Added current user's ID for reference
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Post reported successfully!'),
+      ),
+    );
+  }
+
+  // Function to apply for a job
   Future<void> _applyForJob(String clientId, String postId) async {
     // Check if the user has already applied for this post
     var existingApplication = await FirebaseFirestore.instance
